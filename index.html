@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="darkreader-lock"><!-- Dark Reader 拡張に暗くさせない（明るい配色を保つ） -->
 <title>猫の去勢・避妊 最短予約日</title>
 <meta name="description" content="全国の動物病院で猫の去勢・避妊手術が最短いつ取れたか、みんなで持ち寄る掲示板。野良猫の保護・さくらねこ活動を応援します。">
 <meta property="og:type" content="website">
@@ -43,6 +45,8 @@
   .latest .none{color:var(--muted)}
   .city{margin:20px 0 6px;font-size:1.15rem;border-bottom:1px solid var(--line)}
   footer{margin:32px 0 16px;color:var(--muted);font-size:.85rem}
+  a.btn.ico{display:inline-flex;align-items:center;gap:6px}
+  a.btn.share{padding:6px}
   .ad{margin:24px 0 0;min-height:0;text-align:center}
   .ad::before{content:"広告";display:block;color:var(--muted);font-size:.75rem}
   .hidden{display:none !important} /* a.btn の display より強くしないと隠れない */
@@ -88,10 +92,10 @@
   <span id="status" class="meta"></span>
 </div>
 <div class="toolbar">
-  <span id="remind" class="meta hidden">予約を取ったら、登録を忘れないように → <a id="remindLink" class="btn small" href="#" target="_blank" rel="noopener">3日後にカレンダーで知らせる</a></span>
+  <span id="remind" class="meta hidden">予約を取ったら、登録を忘れないように → <a id="remindLink" class="btn small ico" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2" fill="#fff" stroke="#4285f4" stroke-width="2"/><rect x="3" y="4" width="18" height="5" rx="2" fill="#4285f4"/><text x="12" y="18.5" font-size="8" font-weight="700" text-anchor="middle" fill="#4285f4" font-family="Arial,sans-serif">31</text></svg>Googleカレンダーに3日後の予定を入れる</a></span>
   <span class="meta">このページを広める：</span>
-  <a id="shareX" class="btn small" href="#" target="_blank" rel="noopener">X で共有</a>
-  <a id="shareLine" class="btn small" href="#" target="_blank" rel="noopener">LINE で送る</a>
+  <a id="shareX" class="btn small ico share" href="#" target="_blank" rel="noopener" aria-label="X で共有" title="X で共有"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#000" d="M17.8 3h3.1l-6.8 7.7L22 21h-6.2l-4.9-6.3L5.3 21H2.2l7.2-8.3L1.8 3h6.4l4.4 5.8zM16.7 19.2h1.7L7.3 4.7H5.5z"/></svg></a>
+  <a id="shareLine" class="btn small ico share" href="#" target="_blank" rel="noopener" aria-label="LINE で送る" title="LINE で送る"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#06c755"/><path fill="#fff" d="M12 4.5c-4.7 0-8.5 3-8.5 6.8 0 3.4 3 6.2 7.1 6.7.3.1.6.2.7.4.1.2.1.6 0 .8l-.1.7c0 .2-.2.8.7.4.9-.4 4.9-2.9 6.7-4.9 1.2-1.3 1.8-2.7 1.8-4.1 0-3.8-3.8-6.8-8.4-6.8z"/><text x="12" y="13.3" font-size="4.6" font-weight="700" text-anchor="middle" fill="#06c755" font-family="Arial,sans-serif">LINE</text></svg></a>
 </div>
 
 <div id="list"></div>
