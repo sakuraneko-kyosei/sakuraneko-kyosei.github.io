@@ -24,7 +24,7 @@ window.SITE_CONFIG = {
   clinicPrefEntry: "entry.910954798", // 「都道府県」設問の entry ID。入れると今の県が選ばれた状態で開く
 
   // アクセス解析: Google アナリティクス 4 の測定 ID（例 "G-XXXXXXXXXX"）。空なら計測しない
-  gaId: "",
+  gaId: "G-SGDWB7BR9N",
 
   // サイト運営への応援ページ（OFUSE / Ko-fi など）。空なら出さない
   supportUrl: "",
