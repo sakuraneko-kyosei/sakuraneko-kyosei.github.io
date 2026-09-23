@@ -344,6 +344,20 @@
       html.push(`<h2 class="city">${esc(city)}</h2>`);
       for (const c of mine.filter(x => x.city === city)) html.push(card(c));
     }
+    // 一覧に無い病院として登録されたもの（名前が一覧のどれとも一致しない）を、地域を絞っていない時だけ別枠で出す
+    if (!sel) {
+      const known = new Set(mine.map(c => norm(c.formName || c.name)));
+      const names = new Map();
+      for (const r of reports) {
+        if ((r.pref || "青森県") !== p || known.has(norm(r.clinic))) continue;
+        if (!names.has(norm(r.clinic))) names.set(norm(r.clinic), r.clinic.trim());
+      }
+      if (names.size) {
+        html.push(`<h2 class="city">一覧に無い病院の登録</h2>
+          <p class="meta">利用者が一覧に無い病院として登録したものです。病院名は入力されたままで、運営者はまだ確かめていません。</p>`);
+        for (const name of names.values()) html.push(card({pref: p, name, unlisted: true}));
+      }
+    }
     $("#list").innerHTML = html.join("");
   }
 
@@ -371,9 +385,10 @@
                  + line("避妊（メス）", mine.filter(r => kind(r, "避妊")));
     const link = formOpen(c.pref)
       ? ` <a class="btn small" href="${esc(formLink(c.pref, c))}" target="_blank" rel="noopener">この病院の最短日を登録</a>` : "";
-    return `<div class="card">
+    return `<div class="card${c.unlisted ? " unlisted" : ""}">
       <h3>${esc(c.name)}</h3>
-      <div class="meta">${esc(c.address)} ／ <a href="tel:${esc(c.tel.replace(/-/g,""))}">${esc(c.tel)}</a>${c.hours ? " ／ " + esc(c.hours) : ""}</div>
+      ${c.unlisted ? `<div class="meta">一覧に無い病院（住所・電話は未確認）</div>`
+        : `<div class="meta">${esc(c.address)} ／ <a href="tel:${esc(c.tel.replace(/-/g,""))}">${esc(c.tel)}</a>${c.hours ? " ／ " + esc(c.hours) : ""}</div>`}
       <div class="latest">${latest}${link}</div>
     </div>`;
   }
@@ -443,11 +458,12 @@
     add("", "選んでください");
     cs.forEach(c => add(c.formName || c.name, `${c.formName || c.name}（${c.city || ""}）`));
     add("__other", "一覧に無い病院");
-    sel.value = clinicName && cs.some(c => (c.formName || c.name) === clinicName) ? clinicName : "";
+    const listed = clinicName && cs.some(c => (c.formName || c.name) === clinicName);
+    sel.value = listed ? clinicName : (clinicName ? "__other" : "");
     const t = iso(new Date());
     Object.values(ymd).forEach(x => x.set(t));
     dlg.querySelectorAll("[data-count]").forEach(s => s.value = "0"); showDates();
-    q("#regNote").value = ""; q("#regOther").value = ""; q("#regErr").textContent = "";
+    q("#regNote").value = ""; q("#regOther").value = listed ? "" : (clinicName || ""); q("#regErr").textContent = "";
     q("#regOtherL").classList.toggle("hidden", sel.value !== "__other");
     dlg.showModal();
   }
