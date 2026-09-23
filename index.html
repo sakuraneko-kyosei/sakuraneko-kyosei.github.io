@@ -27,6 +27,8 @@
   h1{font-size:1.5rem;margin:0 0 4px}
   .lead{color:var(--muted);margin:0}
   .joke{margin:6px 0 0;font-size:.8rem;color:var(--accent)}
+  .qr{display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:.75rem;color:var(--muted)}
+  .qr img{background:#fff;border-radius:4px}
   .mission{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:8px;padding:12px 16px;margin:16px 0}
   .mission h2{font-size:1.05rem;margin:0 0 6px;color:var(--accent)}
   .mission p{margin:6px 0}
@@ -60,6 +62,7 @@
   <h1>猫の去勢・避妊 最短予約日<span id="prefTitle"></span></h1>
   <p class="lead">動物病院で「最短いつ手術が取れたか」を、予約した人が持ち寄る掲示板です。</p>
   <p class="joke">🐾 このサイトは猫が AI Claude を使って作成しました（にゃ）</p>
+  <p class="qr"><img src="qr.svg" width="66" height="66" alt="このサイトの QR コード（https://sakuraneko-kyosei.github.io/）"><span>スマホで開く・<br>人に教えるときに</span></p>
   <!-- 自作の猫（外部素材なし）。左耳の先を桜の花びら形に切った「さくらねこ」 -->
   <svg class="cat" viewBox="0 0 120 120" aria-hidden="true">
     <g fill="#f3a7b9">
@@ -125,6 +128,16 @@
   const $ = s => document.querySelector(s);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
+  // アクセス解析（Google アナリティクス 4）。config.js の gaId（G-...）が入るまで何も読まない
+  if (cfg.gaId) {
+    const s = document.createElement("script"); s.async = true;
+    s.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(cfg.gaId);
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function(){ dataLayer.push(arguments); };
+    gtag("js", new Date()); gtag("config", cfg.gaId);
+  }
+
   // 運営の応援リンクと広告（設定が空なら出さない）。広告は一覧の後の1枠だけ。
   if (cfg.supportUrl) { $("#supportLink").href = cfg.supportUrl; $("#supportP").classList.remove("hidden"); }
   if (cfg.adsenseClient && cfg.adsenseSlot) {
@@ -137,17 +150,31 @@
     ad.classList.remove("hidden");
   }
 
-  // 病院一覧
-  const data = await fetch("data/clinics.json").then(r => r.json());
-  const clinics = data.clinics;
-  $("#source").textContent = "病院情報の出典: " + data.source;
+  // 病院一覧は県ごとのファイル（data/clinics/<県>.json）。全国分は大きいので、開いた県の分だけ読む。
+  // data/prefs.json は県ごとの件数（tools/build_index.py が作る）
+  const idx = await fetch("data/prefs.json").then(r => r.json());
+  $("#source").textContent = "病院情報の出典: " + idx.source;
+  const cache = {};
+  const loadPref = p => {
+    if (!idx.counts[p]) return Promise.resolve([]);
+    return cache[p] ??= fetch(`data/clinics/${encodeURIComponent(p)}.json`).then(r => r.json()).then(d => d.clinics).catch(() => []);
+  };
+  let clinics = [];
 
-  // 登録（Sheets 公開 CSV）
+  // 登録（Sheets 公開 CSV）。列は見出しの名前で探す（フォームは県ごとに「病院名（◯◯県）」の列が分かれる）
   let reports = [];
   if (cfg.sheetCsvUrl) {
     try {
       const txt = await fetch(cfg.sheetCsvUrl, {cache:"no-store"}).then(r => r.text());
-      reports = parseCsv(txt).slice(1).filter(r => r.length >= 5 && r[1]);
+      const rows = parseCsv(txt), head = (rows[0] || []).map(h => h.trim());
+      const col = t => head.findIndex(h => h.startsWith(t));
+      const iPref = col("都道府県"), iKind = col("手術の種類"), iCall = col("電話"), iGot = col("最短"), iNote = col("備考");
+      const iClin = head.map((h, i) => h.startsWith("病院名") ? i : -1).filter(i => i >= 0);
+      const at = (r, i) => i >= 0 ? (r[i] || "") : "";
+      reports = rows.slice(1).map(r => ({
+        ts: r[0], pref: at(r, iPref), clinic: iClin.map(i => r[i]).find(v => v && v.trim()) || "",
+        kind: at(r, iKind), called: at(r, iCall), got: at(r, iGot), note: at(r, iNote),
+      })).filter(x => x.clinic && x.got);
       $("#status").textContent = `登録 ${reports.length} 件`;
     } catch (e) {
       $("#status").textContent = "登録データを読めませんでした";
@@ -163,7 +190,7 @@
     "静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県",
     "岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県",
     "大分県","宮崎県","鹿児島県","沖縄県"];
-  const count = p => clinics.filter(c => c.pref === p).length;
+  const count = p => idx.counts[p] || 0;
   for (const p of PREFS) {
     const o = document.createElement("option"); o.value = p;
     o.textContent = count(p) ? `${p}（${count(p)}件）` : `${p}（準備中）`;
@@ -177,19 +204,30 @@
   const saved = load();
   const fromUrl = new URLSearchParams(location.search).get("pref");
   $("#pref").value = [fromUrl, saved.pref, cfg.defaultPref, "東京都"].find(p => PREFS.includes(p));
-  $("#pref").addEventListener("change", () => {
-    const u = new URL(location.href); u.searchParams.set("pref", $("#pref").value);
+  $("#pref").addEventListener("change", async () => {
+    const p = $("#pref").value;
+    const u = new URL(location.href); u.searchParams.set("pref", p);
     history.replaceState(null, "", u);
+    clinics = await loadPref(p);
+    if (p !== $("#pref").value) return; // 読み込み中に別の県へ切り替えられた
     fillCities(); save(); render();
   });
   $("#city").addEventListener("change", () => { save(); render(); });
+  clinics = await loadPref($("#pref").value);
   fillCities();
   // 前回の地域は、同じ県を開いた時だけ戻す（その県に無い地域は無視）
   if (saved.city && saved.pref === $("#pref").value && [...$("#city").options].some(o => o.value === saved.city)) $("#city").value = saved.city;
   render();
 
-  // 登録を受け付けている県か（フォームの病院一覧がその県の分だけなので、県ごとに開ける）
-  function formOpen(p){ return !!cfg.formUrl && (cfg.formPrefs || []).includes(p); }
+  // 登録を受け付けている県か（フォームにその県の病院のセクションがあり、entry ID が分かっている県）
+  function formOpen(p){ return !!cfg.formUrl && !!(cfg.formClinicEntries || {})[p]; }
+  // 県（と病院）を事前入力したフォームの URL
+  function formLink(p, c){
+    const u = new URL(cfg.formUrl);
+    if (cfg.formPrefEntry) u.searchParams.set(cfg.formPrefEntry, p);
+    if (c) u.searchParams.set(cfg.formClinicEntries[p], c.formName || c.name);
+    return u.toString();
+  }
 
   // 地域セレクタ（clinics.json の並び順を保つ）
   function fillCities(){
@@ -206,7 +244,7 @@
     $("#prefTitle").textContent = `（${p}）`;
     document.title = `${p} 猫の去勢・避妊 最短予約日`;
     const b = $("#formBtn");
-    if (formOpen(p)) { b.href = cfg.formUrl; b.classList.remove("hidden"); } else b.classList.add("hidden");
+    if (formOpen(p)) { b.href = formLink(p); b.classList.remove("hidden"); } else b.classList.add("hidden");
     // 病院の追加依頼は全県で受ける（運営者が確かめてから clinics.json へ足す）。今の県を事前入力する。
     const cb = $("#clinicBtn");
     if (cfg.clinicFormUrl) {
@@ -249,30 +287,28 @@
   }
 
   function card(c){
-    const mine = reports.filter(r => norm(r[1]) === norm(c.name))
-                        .sort((a,b) => new Date(b[0]) - new Date(a[0]));
-    // 去勢と避妊は空き具合が違うので、種類ごとに最新を1行ずつ出す（フォームの「手術の種類」＝列 C）
+    // 県＋フォームの選択肢名で照合（別の県の同名病院と混ざらない）。
+    // 県の列が無かった頃の登録は青森県だけだったので、県が空なら青森県とみなす
+    const mine = reports.filter(r => (r.pref || "青森県") === c.pref && norm(r.clinic) === norm(c.formName || c.name))
+                        .sort((a,b) => new Date(b.ts) - new Date(a.ts));
+    // 去勢と避妊は空き具合が違うので、種類ごとに最新を1行ずつ出す
     const line = (label, rows) => {
       if (!rows.length) return `<div><b>${label}</b> <span class="none">まだ登録がありません</span></div>`;
       const r = rows[0];
-      const ts = new Date(r[0]);
+      const ts = new Date(r.ts);
       const age = Math.floor((Date.now() - ts) / 86400000);
-      const called = parseDate(r[3]), got = parseDate(r[4]);
+      const called = parseDate(r.called), got = parseDate(r.got);
       const days = (called && got) ? Math.round((got - called) / 86400000) : null;
       return `<div><b>${label}</b> <span class="${age > (cfg.staleDays||90) ? "stale" : ""}">最新の登録（${esc(fmt(ts))}、${age}日前）：</span> `
-           + (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(r[4])}）` : `最短 ${esc(r[4])}`)
-           + (r[5] ? `<br><span class="meta">${esc(r[5])}</span>` : "")
+           + (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(r.got)}）` : `最短 ${esc(r.got)}`)
+           + (r.note ? `<br><span class="meta">${esc(r.note)}</span>` : "")
            + (rows.length > 1 ? `<span class="meta">（他 ${rows.length-1} 件）</span>` : "") + `</div>`;
     };
-    const kind = (r, k) => norm(r[2]).startsWith(k);
+    const kind = (r, k) => norm(r.kind).startsWith(k);
     const latest = line("去勢（オス）", mine.filter(r => kind(r, "去勢")))
                  + line("避妊（メス）", mine.filter(r => kind(r, "避妊")));
-    let link = "";
-    if (formOpen(c.pref)) {
-      const u = new URL(cfg.formUrl);
-      if (cfg.formClinicEntry) u.searchParams.set(cfg.formClinicEntry, c.name);
-      link = ` <a class="btn small" href="${esc(u.toString())}" target="_blank" rel="noopener">この病院の最短日を登録</a>`;
-    }
+    const link = formOpen(c.pref)
+      ? ` <a class="btn small" href="${esc(formLink(c.pref, c))}" target="_blank" rel="noopener">この病院の最短日を登録</a>` : "";
     return `<div class="card">
       <h3>${esc(c.name)}</h3>
       <div class="meta">${esc(c.address)} ／ <a href="tel:${esc(c.tel.replace(/-/g,""))}">${esc(c.tel)}</a>${c.hours ? " ／ " + esc(c.hours) : ""}</div>
