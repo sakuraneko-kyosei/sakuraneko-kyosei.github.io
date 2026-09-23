@@ -61,6 +61,21 @@
   a.btn.share{padding:6px}
   .ad{margin:24px 0 0;min-height:0;text-align:center}
   .ad::before{content:"広告";display:block;color:var(--muted);font-size:.75rem}
+  /* サイト内の登録フォーム（Google フォームの日付欄は年月日を別々に選べないので、ここで作って送る） */
+  dialog#reg{border:1px solid var(--line);border-radius:12px;padding:0;max-width:520px;width:calc(100% - 24px);background:var(--card);color:var(--fg)}
+  dialog#reg::backdrop{background:rgba(58,50,48,.35)}
+  #reg form{padding:16px}
+  #reg h2{margin:0 0 8px;font-size:1.15rem;color:var(--accent)}
+  #reg fieldset{border:1px solid var(--line);border-radius:8px;margin:10px 0;padding:8px 12px}
+  #reg legend{font-weight:bold;padding:0 4px}
+  #reg label{display:block;margin:6px 0}
+  #reg .ymd{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+  #reg .ymd select{padding:6px 4px}
+  #reg .cal{position:relative;display:inline-flex;align-items:center;justify-content:center;width:40px;height:36px;border:1px solid var(--line);border-radius:6px;background:var(--card);cursor:pointer}
+  #reg .cal input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+  #reg textarea,#reg input[type=text]{width:100%;font:inherit;padding:6px;border:1px solid var(--line);border-radius:6px}
+  #reg .err{color:#c0392b;font-weight:bold;min-height:1.2em}
+  #reg .row{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
   .hidden{display:none !important} /* a.btn の display より強くしないと隠れない */
 </style>
 </head>
@@ -120,6 +135,28 @@
 
 <div id="list"></div>
 
+
+<dialog id="reg">
+  <form method="dialog" id="regForm" novalidate>
+    <h2>最短日を登録する</h2>
+    <p class="meta" id="regPref"></p>
+    <label>手術を予約した病院 <select id="regClinic" required></select></label>
+    <p class="meta">一覧から選んでください。一覧に無いときは、いちばん下の「一覧に無い病院」を選ぶと、名前を入力する欄が出ます。</p>
+    <label id="regOtherL" class="hidden">病院の名前（例：さくら動物病院）<input type="text" id="regOther"></label>
+    <fieldset><legend>電話・予約した日</legend><div class="ymd" data-k="called"></div></fieldset>
+    <fieldset><legend>去勢（オス）</legend>
+      <label>匹数 <select data-count="male"></select></label>
+      <div class="kdate hidden" data-for="male"><div>最短で取れた手術日</div><div class="ymd" data-k="maleDate"></div></div>
+    </fieldset>
+    <fieldset><legend>避妊（メス）</legend>
+      <label>匹数 <select data-count="female"></select></label>
+      <div class="kdate hidden" data-for="female"><div>最短で取れた手術日</div><div class="ymd" data-k="femaleDate"></div></div>
+    </fieldset>
+    <label>備考（任意。術前検査・絶食など。個人が分かることは書かないでください）<textarea id="regNote" rows="2"></textarea></label>
+    <p class="err" id="regErr"></p>
+    <div class="row"><button type="button" id="regCancel">やめる</button><button type="button" class="primary" id="regSend">送信する</button></div>
+  </form>
+</dialog>
 
 <!-- 広告枠（config.js の adsenseClient / adsenseSlot が入るまで何も出さない） -->
 <div id="ad" class="ad hidden"></div>
@@ -355,6 +392,111 @@
     if (cur!==""||row.length){ row.push(cur); rows.push(row); }
     return rows;
   }
+})();
+</script>
+<script>
+// サイト内の登録フォーム。一覧の「登録」リンク（Google フォームの事前入力 URL）の押下を横取りして開き、
+// 同じフォームの formResponse へ送る。年・月・日のプルダウンとカレンダーは連動する。初期値は今日、匹数は 0。
+// ⚠️ dialog や fetch が使えないブラウザでは横取りせず、元の Google フォームがそのまま開く。
+(function(){
+  const cfg = window.SITE_CONFIG || {}, E = cfg.formEntries || {};
+  const dlg = document.getElementById("reg");
+  if (!cfg.formUrl || !E.pref || !dlg || typeof dlg.showModal !== "function" || !window.fetch) return;
+  const q = s => dlg.querySelector(s);
+  const pad = n => String(n).padStart(2, "0");
+  const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+  // 年月日のプルダウン＋カレンダー（見えない date 入力を 📅 に重ねる）
+  const ymd = {};
+  dlg.querySelectorAll(".ymd").forEach(box => {
+    const k = box.dataset.k, y0 = new Date().getFullYear();
+    const sel = (list, suf) => { const s = document.createElement("select");
+      list.forEach(v => { const o = document.createElement("option"); o.value = v; o.textContent = v + suf; s.appendChild(o); }); return s; };
+    const Y = sel([y0-1, y0, y0+1], "年"), M = sel([...Array(12)].map((_, i) => i+1), "月"), D = sel([...Array(31)].map((_, i) => i+1), "日");
+    const cal = document.createElement("label"); cal.className = "cal"; cal.title = "カレンダーから選ぶ"; cal.textContent = "📅";
+    const inp = document.createElement("input"); inp.type = "date"; inp.setAttribute("aria-label", "カレンダーから選ぶ"); cal.appendChild(inp);
+    box.append(Y, M, D, cal);
+    const days = () => new Date(+Y.value, +M.value, 0).getDate();
+    const fixDays = () => [...D.options].forEach(o => o.disabled = +o.value > days()) || (+D.value > days() && (D.value = days()));
+    const toInp = () => { fixDays(); inp.value = `${Y.value}-${pad(M.value)}-${pad(D.value)}`; };
+    const set = v => { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(v); if (!m) return;
+      if (![...Y.options].some(o => o.value === String(+m[1]))) { const o = document.createElement("option"); o.value = +m[1]; o.textContent = +m[1] + "年"; Y.appendChild(o); }
+      Y.value = +m[1]; M.value = +m[2]; D.value = +m[3]; toInp(); };
+    [Y, M, D].forEach(s => s.addEventListener("change", toInp));
+    inp.addEventListener("change", () => set(inp.value));
+    cal.addEventListener("click", () => { try { inp.showPicker(); } catch (e) {} });
+    ymd[k] = {set, get: () => ({y: +Y.value, m: +M.value, d: +D.value}), date: () => new Date(+Y.value, M.value-1, +D.value)};
+  });
+  dlg.querySelectorAll("[data-count]").forEach(s => { for (let i = 0; i <= 10; i++) { const o = document.createElement("option"); o.value = o.textContent = i; s.appendChild(o); } });
+  const cnt = k => +q(`[data-count="${k}"]`).value;
+  // 手術日は匹数が1以上になってから出す
+  const showDates = () => dlg.querySelectorAll(".kdate").forEach(d => d.classList.toggle("hidden", !cnt(d.dataset.for)));
+  dlg.querySelectorAll("[data-count]").forEach(s => s.addEventListener("change", showDates));
+
+  let pref = "";
+  async function open(p, clinicName){
+    pref = p;
+    q("#regPref").textContent = `都道府県：${p}`;
+    const cs = await fetch(`data/clinics/${encodeURIComponent(p)}.json`).then(r => r.json()).then(d => d.clinics).catch(() => []);
+    const sel = q("#regClinic"); sel.innerHTML = "";
+    const add = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); };
+    add("", "選んでください");
+    cs.forEach(c => add(c.formName || c.name, `${c.formName || c.name}（${c.city || ""}）`));
+    add("__other", "一覧に無い病院");
+    sel.value = clinicName && cs.some(c => (c.formName || c.name) === clinicName) ? clinicName : "";
+    const t = iso(new Date());
+    Object.values(ymd).forEach(x => x.set(t));
+    dlg.querySelectorAll("[data-count]").forEach(s => s.value = "0"); showDates();
+    q("#regNote").value = ""; q("#regOther").value = ""; q("#regErr").textContent = "";
+    q("#regOtherL").classList.toggle("hidden", sel.value !== "__other");
+    dlg.showModal();
+  }
+  q("#regClinic").addEventListener("change", e => q("#regOtherL").classList.toggle("hidden", e.target.value !== "__other"));
+  q("#regCancel").addEventListener("click", () => dlg.close());
+
+  q("#regSend").addEventListener("click", async () => {
+    const err = m => { q("#regErr").textContent = m; };
+    const v = q("#regClinic").value, clinic = v === "__other" ? q("#regOther").value.trim() : v;
+    if (!clinic) return err("病院を選んでください");
+    const mc = cnt("male"), fc = cnt("female");
+    if (!mc && !fc) return err("去勢か避妊の匹数を1以上にしてください");
+    const called = ymd.called.date();
+    for (const [k, n, label] of [["maleDate", mc, "去勢"], ["femaleDate", fc, "避妊"]]) {
+      if (n && ymd[k].date() < called) return err(`${label}の手術日が、予約した日より前になっています`);
+    }
+    const body = new URLSearchParams();
+    const put = (k, v) => { if (E[k]) body.append(E[k], v); };
+    const putDate = k => { if (!E[k]) return; const x = ymd[k].get(); body.append(E[k] + "_year", x.y); body.append(E[k] + "_month", x.m); body.append(E[k] + "_day", x.d); };
+    put("pref", pref); put("clinic", clinic); putDate("called");
+    put("maleCount", String(mc)); put("femaleCount", String(fc));
+    if (mc) putDate("maleDate");
+    if (fc) putDate("femaleDate");
+    if (E.note && q("#regNote").value.trim()) put("note", q("#regNote").value.trim());
+    q("#regSend").disabled = true; err("");
+    try {
+      // Google フォームは CORS を返さないので結果は読めない（no-cors）。送れたかは回答シートに出るかで分かる
+      await fetch(cfg.formUrl.replace(/\/viewform.*$/, "/formResponse"), {method: "POST", mode: "no-cors", body});
+      dlg.close();
+      alertBox("送信しました。ありがとうございます！ サイトへの反映には数分かかります。");
+    } catch (e) {
+      err("送信できませんでした。通信を確かめて、もう一度押してください");
+    } finally { q("#regSend").disabled = false; }
+  });
+
+  function alertBox(msg){
+    const d = document.createElement("div"); d.className = "card"; d.setAttribute("role", "status");
+    d.style.cssText = "position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:10;max-width:90%";
+    d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 6000);
+  }
+
+  // 登録リンク（一覧の各病院・上のボタン）を横取りする。県と病院名は事前入力 URL から読む
+  document.addEventListener("click", e => {
+    const a = e.target.closest && e.target.closest("a[href]");
+    if (!a || !a.href.startsWith(cfg.formUrl)) return;
+    const u = new URL(a.href), p = u.searchParams.get(E.pref) || document.getElementById("pref").value;
+    e.preventDefault();
+    open(p, E.clinic ? u.searchParams.get(E.clinic) : "");
+  });
 })();
 </script>
 </body>
