@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>さくらねこ 去勢・避妊 最短予約日</title>
+<title>猫の去勢・避妊 最短予約日</title>
 <meta name="description" content="全国の動物病院で猫の去勢・避妊手術が最短いつ取れたか、みんなで持ち寄る掲示板。野良猫の保護・さくらねこ活動を応援します。">
 <style>
   :root{--bg:#fffdf8;--fg:#2b2b2b;--muted:#6b6b6b;--line:#e6dfd2;--accent:#d96c8a;--accent2:#5b8c5a;--warn:#b35c00;--card:#fff}
@@ -113,15 +113,24 @@
     o.textContent = count(p) ? `${p}（${count(p)}件）` : `${p}（準備中）`;
     $("#pref").appendChild(o);
   }
+  // 開く県の優先順: URL の ?pref= → 前回選んだ県（このブラウザに保存）→ 既定（config.js）
+  // 保存はこの閲覧者のブラウザの中だけ。プライベートウィンドウ等で使えなくても動くようにする。
+  const KEY = "sakuraneko.selection";
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({pref: $("#pref").value, city: $("#city").value})); } catch (e) {} };
+  const saved = load();
   const fromUrl = new URLSearchParams(location.search).get("pref");
-  $("#pref").value = PREFS.includes(fromUrl) ? fromUrl : (cfg.defaultPref || "青森県");
+  $("#pref").value = [fromUrl, saved.pref, cfg.defaultPref, "東京都"].find(p => PREFS.includes(p));
   $("#pref").addEventListener("change", () => {
     const u = new URL(location.href); u.searchParams.set("pref", $("#pref").value);
     history.replaceState(null, "", u);
-    fillCities(); render();
+    fillCities(); save(); render();
   });
-  $("#city").addEventListener("change", render);
-  fillCities(); render();
+  $("#city").addEventListener("change", () => { save(); render(); });
+  fillCities();
+  // 前回の地域は、同じ県を開いた時だけ戻す（その県に無い地域は無視）
+  if (saved.city && saved.pref === $("#pref").value && [...$("#city").options].some(o => o.value === saved.city)) $("#city").value = saved.city;
+  render();
 
   // 登録を受け付けている県か（フォームの病院一覧がその県の分だけなので、県ごとに開ける）
   function formOpen(p){ return !!cfg.formUrl && (cfg.formPrefs || []).includes(p); }
@@ -129,7 +138,7 @@
   // 地域セレクタ（clinics.json の並び順を保つ）
   function fillCities(){
     const p = $("#pref").value;
-    const sel = $("#city"); sel.length = 1; // 「すべて」だけ残す
+    const sel = $("#city"); sel.length = 1; sel.value = ""; // 「すべて」だけ残す
     for (const c of [...new Set(clinics.filter(x => x.pref === p).map(x => x.city))]) {
       const o = document.createElement("option"); o.value = o.textContent = c; sel.appendChild(o);
     }
@@ -139,7 +148,7 @@
   function render(){
     const p = $("#pref").value, sel = $("#city").value;
     $("#prefTitle").textContent = `（${p}）`;
-    document.title = `${p} 猫の去勢・避妊 最短予約日｜さくらねこ`;
+    document.title = `${p} 猫の去勢・避妊 最短予約日`;
     const b = $("#formBtn");
     if (formOpen(p)) { b.href = cfg.formUrl; b.classList.remove("hidden"); } else b.classList.add("hidden");
 
