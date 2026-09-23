@@ -32,6 +32,10 @@
   .mission{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:8px;padding:12px 16px;margin:16px 0}
   .mission h2{font-size:1.05rem;margin:0 0 6px;color:var(--accent)}
   .mission p{margin:6px 0}
+  details.notice summary{cursor:pointer;list-style:none;font-weight:bold}
+  details.notice summary::-webkit-details-marker{display:none}
+  details.notice summary::after{content:"　▼ タップで全文";font-size:.8rem;font-weight:normal;color:var(--muted,#888)}
+  details.notice[open] summary::after{content:"　▲ 閉じる"}
   details.mission summary{cursor:pointer;list-style:none;font-weight:bold;font-size:1.05rem;color:var(--accent)}
   details.mission summary::-webkit-details-marker{display:none}
   details.mission summary::after{content:"　▼ タップで全文";font-size:.8rem;font-weight:normal;color:var(--muted,#888)}
@@ -85,14 +89,14 @@
   <p>このサイトを作ったきっかけも、元は野良だった2匹の猫に、少しでも早く去勢手術を受けさせたかったことでした。「どこなら早く予約が取れるか」が分かれば、保護した猫を一日でも早く手術に連れて行けます。予約が取れたら、その日付を一件だけ登録してください。次に困る誰かの助けになります。</p>
 </details>
 
-<section class="notice">
-  <strong>ご利用の前に</strong>
+<details class="notice">
+  <summary>ご利用の前に</summary>
   <ul>
     <li>ここに載る日付は、予約した方が<strong>善意で登録した記録</strong>です。病院の公式情報ではなく、<strong>最短である保証もありません</strong>。登録日時が古いほど当てになりません。</li>
     <li>実際の空きは日々変わります。<strong>必ず病院へ電話して確認</strong>してください。</li>
     <li>病院名・住所・電話・診療時間は公開情報から転記したものです。誤りの訂正や掲載についてのご連絡は、登録フォームで病院を選び、備考欄にお書きください。</li>
   </ul>
-</section>
+</details>
 
 <div class="toolbar">
   <label>都道府県：<select id="pref"></select></label>
