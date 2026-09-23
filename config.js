@@ -23,7 +23,7 @@ window.SITE_CONFIG = {
   gaId: "G-SGDWB7BR9N",
 
   // サイト運営への応援ページ（OFUSE / Ko-fi など）。空なら出さない
-  supportUrl: "",
+  supportUrl: "https://ofuse.me/76bca621",
   // Google AdSense（審査に通ってから入れる）。例 "ca-pub-1234567890123456" と広告ユニットの slot 番号
   adsenseClient: "",
   adsenseSlot: "",
