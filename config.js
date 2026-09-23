@@ -24,6 +24,12 @@ window.SITE_CONFIG = {
   clinicFormUrl: "",
   clinicPrefEntry: "", // 「都道府県」設問の entry ID。入れると今の県が選ばれた状態で開く
 
+  // サイト運営への応援ページ（OFUSE / Ko-fi など）。空なら出さない
+  supportUrl: "",
+  // Google AdSense（審査に通ってから入れる）。例 "ca-pub-1234567890123456" と広告ユニットの slot 番号
+  adsenseClient: "",
+  adsenseSlot: "",
+
   // 登録から何日経ったら「古い」と表示するか
   staleDays: 90,
 };

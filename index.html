@@ -18,7 +18,9 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.6}
   main{max-width:960px;margin:0 auto;padding:16px}
-  header{background:linear-gradient(135deg,#ffe4ec,#fff3e6);border-radius:12px;padding:16px;margin-bottom:16px}
+  header{position:relative;overflow:hidden;background:linear-gradient(135deg,#ffe4ec,#fff3e6);border-radius:12px;padding:16px 120px 16px 16px;margin-bottom:16px}
+  header .cat{position:absolute;right:8px;bottom:-6px;width:110px;height:auto;opacity:.85;pointer-events:none}
+  @media (max-width:480px){header{padding-right:84px} header .cat{width:80px}}
   h1{font-size:1.5rem;margin:0 0 4px}
   .lead{color:var(--muted);margin:0}
   .mission{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:8px;padding:12px 16px;margin:16px 0}
@@ -41,6 +43,8 @@
   .latest .none{color:var(--muted)}
   .city{margin:20px 0 6px;font-size:1.15rem;border-bottom:1px solid var(--line)}
   footer{margin:32px 0 16px;color:var(--muted);font-size:.85rem}
+  .ad{margin:24px 0 0;min-height:0;text-align:center}
+  .ad::before{content:"広告";display:block;color:var(--muted);font-size:.75rem}
   .hidden{display:none !important} /* a.btn の display より強くしないと隠れない */
 </style>
 </head>
@@ -49,6 +53,16 @@
 <header>
   <h1>猫の去勢・避妊 最短予約日<span id="prefTitle"></span></h1>
   <p class="lead">動物病院で「最短いつ手術が取れたか」を、予約した人が持ち寄る掲示板です。</p>
+  <!-- 自作の猫（外部素材なし）。左耳の先を桜の花びら形に切った「さくらねこ」 -->
+  <svg class="cat" viewBox="0 0 120 120" aria-hidden="true">
+    <g fill="#f3a7b9">
+      <path d="M30 108 C22 80 26 58 40 48 L34 18 L52 36 Q60 33 68 36 L84 16 L82 48 C96 58 98 82 90 108 Z"/>
+      <path d="M90 104 C108 100 114 86 108 74" fill="none" stroke="#f3a7b9" stroke-width="7" stroke-linecap="round"/>
+    </g>
+    <path d="M30 14 L34 22 L40 16 Z" fill="#fff9f5"/>
+    <g fill="#3a3230"><circle cx="50" cy="62" r="3.2"/><circle cx="72" cy="62" r="3.2"/></g>
+    <path d="M58 70 L61 73 L64 70" fill="none" stroke="#3a3230" stroke-width="2" stroke-linecap="round"/>
+  </svg>
 </header>
 
 <section class="mission">
@@ -82,9 +96,18 @@
 
 <div id="list"></div>
 
+<section class="mission support">
+  <h2>応援のお願い</h2>
+  <p>さくらねこの手術は、多くの寄付で支えられています。手術費を直接支えたい方は、<a href="https://www.doubutukikin.or.jp/donation/" target="_blank" rel="noopener">公益財団法人どうぶつ基金への寄付</a>（さくらねこ無料不妊手術事業の実施団体。このサイトとは無関係で、寄付は同財団へ直接届きます）をご検討ください。</p>
+  <p id="supportP" class="hidden">このサイトの運営（ドメイン代・更新作業）を応援していただける方は <a id="supportLink" href="#" target="_blank" rel="noopener">こちら</a> から。</p>
+</section>
+
+<!-- 広告枠（config.js の adsenseClient / adsenseSlot が入るまで何も出さない） -->
+<div id="ad" class="ad hidden"></div>
+
 <footer>
   <p id="source"></p>
-  <p>このサイトは個人が運営する非営利の情報共有サイトです。特定の病院を推奨・評価するものではありません。</p>
+  <p>このサイトは個人が運営する情報共有サイトです。広告収入や応援は運営費に充てます。特定の病院を推奨・評価するものではなく、掲載順や内容を広告で変えることはありません。</p>
 </footer>
 </main>
 
@@ -94,6 +117,18 @@
   const cfg = window.SITE_CONFIG || {};
   const $ = s => document.querySelector(s);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+  // 運営の応援リンクと広告（設定が空なら出さない）。広告は一覧の後の1枠だけ。
+  if (cfg.supportUrl) { $("#supportLink").href = cfg.supportUrl; $("#supportP").classList.remove("hidden"); }
+  if (cfg.adsenseClient && cfg.adsenseSlot) {
+    const ad = $("#ad");
+    ad.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${esc(cfg.adsenseClient)}" data-ad-slot="${esc(cfg.adsenseSlot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+    const s = document.createElement("script"); s.async = true; s.crossOrigin = "anonymous";
+    s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + encodeURIComponent(cfg.adsenseClient);
+    document.head.appendChild(s);
+    (window.adsbygoogle = window.adsbygoogle || []).push({});
+    ad.classList.remove("hidden");
+  }
 
   // 病院一覧
   const data = await fetch("data/clinics.json").then(r => r.json());
