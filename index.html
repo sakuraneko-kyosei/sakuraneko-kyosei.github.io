@@ -251,20 +251,22 @@
   function card(c){
     const mine = reports.filter(r => norm(r[1]) === norm(c.name))
                         .sort((a,b) => new Date(b[0]) - new Date(a[0]));
-    let latest;
-    if (!mine.length) latest = `<span class="none">まだ登録がありません</span>`;
-    else {
-      const r = mine[0];
+    // 去勢と避妊は空き具合が違うので、種類ごとに最新を1行ずつ出す（フォームの「手術の種類」＝列 C）
+    const line = (label, rows) => {
+      if (!rows.length) return `<div><b>${label}</b> <span class="none">まだ登録がありません</span></div>`;
+      const r = rows[0];
       const ts = new Date(r[0]);
       const age = Math.floor((Date.now() - ts) / 86400000);
       const called = parseDate(r[3]), got = parseDate(r[4]);
       const days = (called && got) ? Math.round((got - called) / 86400000) : null;
-      latest = `<span class="${age > (cfg.staleDays||90) ? "stale" : ""}">最新の登録（${esc(fmt(ts))}、${age}日前）：</span> `
-             + (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(r[4])}）` : `最短 ${esc(r[4])}`)
-             + (r[2] ? ` ／ ${esc(r[2])}` : "")
-             + (r[5] ? `<br><span class="meta">${esc(r[5])}</span>` : "")
-             + (mine.length > 1 ? `<span class="meta">（他 ${mine.length-1} 件）</span>` : "");
-    }
+      return `<div><b>${label}</b> <span class="${age > (cfg.staleDays||90) ? "stale" : ""}">最新の登録（${esc(fmt(ts))}、${age}日前）：</span> `
+           + (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(r[4])}）` : `最短 ${esc(r[4])}`)
+           + (r[5] ? `<br><span class="meta">${esc(r[5])}</span>` : "")
+           + (rows.length > 1 ? `<span class="meta">（他 ${rows.length-1} 件）</span>` : "") + `</div>`;
+    };
+    const kind = (r, k) => norm(r[2]).startsWith(k);
+    const latest = line("去勢（オス）", mine.filter(r => kind(r, "去勢")))
+                 + line("避妊（メス）", mine.filter(r => kind(r, "避妊")));
     let link = "";
     if (formOpen(c.pref)) {
       const u = new URL(cfg.formUrl);
