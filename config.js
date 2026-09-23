@@ -1,10 +1,10 @@
 // サイトの設定。運用で触るのはこのファイルだけ。
 window.SITE_CONFIG = {
   // Googleフォームの「送信用リンク」（.../viewform）。空ならボタンを隠す。
-  formUrl: "",
+  formUrl: "https://docs.google.com/forms/d/e/1FAIpQLSdJL_81Ne1ks63IME6QABVh9riAJM0d-L75dH5VVUHX3CpSBw/viewform",
   // フォームの「病院名」設問の entry ID（例 "entry.123456789"）。
   // 入れると、病院の行の「登録する」からフォームを開いた時に病院名が入った状態になる。
-  formClinicEntry: "",
+  formClinicEntry: "entry.1257505099",
 
   // 回答スプレッドシートを「ウェブに公開」した CSV の URL。
   // 列の並び（1行目が見出し）: タイムスタンプ, 病院名, 手術の種類, 電話した日, 最短で取れた日, 備考
