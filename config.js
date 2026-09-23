@@ -11,6 +11,14 @@ window.SITE_CONFIG = {
   // 空なら「登録はまだありません」と出るだけで、病院一覧は動く。
   sheetCsvUrl: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRJ8nUPYwdhdCDkHrDo3jtMk6DSOrPnPjtoNwTOJ0uqFsSFzWiO9VT4bQ2z3ZAD1MUJci8mwWmkTAQR/pub?gid=1149079771&single=true&output=csv",
 
+  // 登録を受け付けている都道府県。フォームの「病院名」の選択肢がこの県の病院だけなので、
+  // 県を増やすときは data/clinics.json と tools/create_form.gs の CLINICS も足してからここへ加える。
+  // ここに無い県は、病院が載っていても登録ボタンを出さない。
+  formPrefs: ["青森県"],
+
+  // URL で県を指定されなかった時に開く県
+  defaultPref: "青森県",
+
   // 登録から何日経ったら「古い」と表示するか
   staleDays: 90,
 };

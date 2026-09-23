@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>青森 猫の去勢・避妊 最短予約日</title>
-<meta name="description" content="青森県の動物病院で猫の去勢・避妊手術が最短いつ取れたか、みんなで持ち寄る掲示板。野良猫の保護・さくらねこ活動を応援します。">
+<title>さくらねこ 去勢・避妊 最短予約日</title>
+<meta name="description" content="全国の動物病院で猫の去勢・避妊手術が最短いつ取れたか、みんなで持ち寄る掲示板。野良猫の保護・さくらねこ活動を応援します。">
 <style>
   :root{--bg:#fffdf8;--fg:#2b2b2b;--muted:#6b6b6b;--line:#e6dfd2;--accent:#d96c8a;--accent2:#5b8c5a;--warn:#b35c00;--card:#fff}
   @media (prefers-color-scheme:dark){:root{--bg:#1c1b19;--fg:#ececec;--muted:#a7a7a7;--line:#3a3833;--card:#26241f}}
@@ -34,14 +34,14 @@
   .latest .none{color:var(--muted)}
   .city{margin:20px 0 6px;font-size:1.15rem;border-bottom:1px solid var(--line)}
   footer{margin:32px 0 16px;color:var(--muted);font-size:.85rem}
-  .hidden{display:none}
+  .hidden{display:none !important} /* a.btn の display より強くしないと隠れない */
 </style>
 </head>
 <body>
 <main>
 <header>
-  <h1>青森 猫の去勢・避妊 最短予約日</h1>
-  <p class="lead">県内の動物病院で「最短いつ手術が取れたか」を、予約した人が持ち寄る掲示板です。</p>
+  <h1>猫の去勢・避妊 最短予約日<span id="prefTitle"></span></h1>
+  <p class="lead">動物病院で「最短いつ手術が取れたか」を、予約した人が持ち寄る掲示板です。</p>
 </header>
 
 <section class="mission">
@@ -60,6 +60,7 @@
 </section>
 
 <div class="toolbar">
+  <label>都道府県：<select id="pref"></select></label>
   <label>地域：<select id="city"><option value="">すべて</option></select></label>
   <a id="formBtn" class="btn primary hidden" href="#" target="_blank" rel="noopener">最短日を登録する</a>
   <span id="status" class="meta"></span>
@@ -99,22 +100,62 @@
     $("#status").textContent = "登録はまだありません";
   }
 
-  // フォームボタン
-  if (cfg.formUrl) { const b = $("#formBtn"); b.href = cfg.formUrl; b.classList.remove("hidden"); }
+  // 都道府県セレクタ。病院データのある県には件数を付ける。
+  // 選んだ県は URL（?pref=青森県）に残すので、県ごとのページとして共有できる。
+  const PREFS = ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県",
+    "埼玉県","千葉県","東京都","神奈川県","新潟県","富山県","石川県","福井県","山梨県","長野県","岐阜県",
+    "静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県","鳥取県","島根県",
+    "岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県","佐賀県","長崎県","熊本県",
+    "大分県","宮崎県","鹿児島県","沖縄県"];
+  const count = p => clinics.filter(c => c.pref === p).length;
+  for (const p of PREFS) {
+    const o = document.createElement("option"); o.value = p;
+    o.textContent = count(p) ? `${p}（${count(p)}件）` : `${p}（準備中）`;
+    $("#pref").appendChild(o);
+  }
+  const fromUrl = new URLSearchParams(location.search).get("pref");
+  $("#pref").value = PREFS.includes(fromUrl) ? fromUrl : (cfg.defaultPref || "青森県");
+  $("#pref").addEventListener("change", () => {
+    const u = new URL(location.href); u.searchParams.set("pref", $("#pref").value);
+    history.replaceState(null, "", u);
+    fillCities(); render();
+  });
+  $("#city").addEventListener("change", render);
+  fillCities(); render();
+
+  // 登録を受け付けている県か（フォームの病院一覧がその県の分だけなので、県ごとに開ける）
+  function formOpen(p){ return !!cfg.formUrl && (cfg.formPrefs || []).includes(p); }
 
   // 地域セレクタ（clinics.json の並び順を保つ）
-  const cities = [...new Set(clinics.map(c => c.city))];
-  for (const c of cities) { const o = document.createElement("option"); o.value = o.textContent = c; $("#city").appendChild(o); }
-  $("#city").addEventListener("change", render);
-  render();
+  function fillCities(){
+    const p = $("#pref").value;
+    const sel = $("#city"); sel.length = 1; // 「すべて」だけ残す
+    for (const c of [...new Set(clinics.filter(x => x.pref === p).map(x => x.city))]) {
+      const o = document.createElement("option"); o.value = o.textContent = c; sel.appendChild(o);
+    }
+    sel.disabled = sel.length === 1;
+  }
 
   function render(){
-    const sel = $("#city").value;
+    const p = $("#pref").value, sel = $("#city").value;
+    $("#prefTitle").textContent = `（${p}）`;
+    document.title = `${p} 猫の去勢・避妊 最短予約日｜さくらねこ`;
+    const b = $("#formBtn");
+    if (formOpen(p)) { b.href = cfg.formUrl; b.classList.remove("hidden"); } else b.classList.add("hidden");
+
+    const mine = clinics.filter(x => x.pref === p);
+    if (!mine.length) {
+      $("#list").innerHTML = `<div class="card empty">
+        <h3>${esc(p)}の病院はまだ登録されていません（準備中）</h3>
+        <p class="meta">このサイトは県ごとに順番に広げています。${esc(p)}で使いたい方、地域の病院やさくらねこ活動をしている団体をご存じの方は、ぜひ教えてください。</p>
+      </div>`;
+      return;
+    }
     const html = [];
-    for (const city of cities) {
+    for (const city of [...new Set(mine.map(x => x.city))]) {
       if (sel && city !== sel) continue;
       html.push(`<h2 class="city">${esc(city)}</h2>`);
-      for (const c of clinics.filter(x => x.city === city)) html.push(card(c));
+      for (const c of mine.filter(x => x.city === city)) html.push(card(c));
     }
     $("#list").innerHTML = html.join("");
   }
@@ -137,7 +178,7 @@
              + (mine.length > 1 ? `<span class="meta">（他 ${mine.length-1} 件）</span>` : "");
     }
     let link = "";
-    if (cfg.formUrl) {
+    if (formOpen(c.pref)) {
       const u = new URL(cfg.formUrl);
       if (cfg.formClinicEntry) u.searchParams.set(cfg.formClinicEntry, c.name);
       link = ` <a class="btn small" href="${esc(u.toString())}" target="_blank" rel="noopener">この病院の最短日を登録</a>`;
