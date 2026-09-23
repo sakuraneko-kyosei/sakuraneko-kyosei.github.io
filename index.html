@@ -13,12 +13,12 @@
 <meta name="twitter:card" content="summary">
 <link rel="canonical" href="https://sakuraneko-kyosei.github.io/">
 <style>
-  :root{--bg:#fffdf8;--fg:#2b2b2b;--muted:#6b6b6b;--line:#e6dfd2;--accent:#d96c8a;--accent2:#5b8c5a;--warn:#b35c00;--card:#fff}
-  @media (prefers-color-scheme:dark){:root{--bg:#1c1b19;--fg:#ececec;--muted:#a7a7a7;--line:#3a3833;--card:#26241f}}
+  /* 明るい雰囲気を保つため、端末がダークモードでも明るい配色のまま出す（利用者の選択） */
+  :root{color-scheme:light;--bg:#fff9f5;--fg:#3a3230;--muted:#7a6e6a;--line:#f0dcd6;--accent:#e07a98;--accent2:#4f9a5c;--warn:#c06a10;--card:#fff}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.6}
   main{max-width:960px;margin:0 auto;padding:16px}
-  header{border-bottom:2px solid var(--accent);padding-bottom:12px;margin-bottom:16px}
+  header{background:linear-gradient(135deg,#ffe4ec,#fff3e6);border-radius:12px;padding:16px;margin-bottom:16px}
   h1{font-size:1.5rem;margin:0 0 4px}
   .lead{color:var(--muted);margin:0}
   .mission{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:8px;padding:12px 16px;margin:16px 0}
