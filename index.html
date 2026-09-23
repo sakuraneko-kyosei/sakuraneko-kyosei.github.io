@@ -149,14 +149,14 @@
     <label>手術を予約した病院 <select id="regClinic" required></select></label>
     <p class="meta">一覧から選んでください。一覧に無いときは、いちばん下の「一覧に無い病院」を選ぶと、名前を入力する欄が出ます。</p>
     <label id="regOtherL" class="hidden">病院の名前（例：さくら動物病院）<input type="text" id="regOther"></label>
-    <fieldset><legend>電話・予約した日</legend><div class="ymd" data-k="called"></div></fieldset>
+    <fieldset><legend>病院に問い合わせた日（電話・予約など）</legend><div class="ymd" data-k="called"></div></fieldset>
     <fieldset><legend>去勢（オス）</legend>
       <label>匹数 <select data-count="male"></select></label>
-      <div class="kdate hidden" data-for="male"><div>最短で取れた手術日</div><div class="ymd" data-k="maleDate"></div></div>
+      <div class="kdate hidden" data-for="male"><div>最短で手術できる日（予約した日、または空きを案内された日）</div><div class="ymd" data-k="maleDate"></div></div>
     </fieldset>
     <fieldset><legend>避妊（メス）</legend>
       <label>匹数 <select data-count="female"></select></label>
-      <div class="kdate hidden" data-for="female"><div>最短で取れた手術日</div><div class="ymd" data-k="femaleDate"></div></div>
+      <div class="kdate hidden" data-for="female"><div>最短で手術できる日（予約した日、または空きを案内された日）</div><div class="ymd" data-k="femaleDate"></div></div>
     </fieldset>
     <label>備考（任意。術前検査・絶食など。個人が分かることは書かないでください）<textarea id="regNote" rows="2" maxlength="200"></textarea></label>
     <!-- 機械的な登録よけのおとり。人には見えず、自動入力するプログラムだけが埋める -->
@@ -379,7 +379,7 @@
       g.searchParams.set("action", "TEMPLATE");
       g.searchParams.set("text", "猫の手術の最短予約日を登録する");
       g.searchParams.set("dates", `${ymd(d)}/${ymd(new Date(d.getTime() + 86400000))}`);
-      g.searchParams.set("details", `取れた手術日を登録すると、次に困る誰かの助けになります。\n${page}`);
+      g.searchParams.set("details", `最短で手術できる日を登録すると、次に困る誰かの助けになります。\n${page}`);
       $("#remindLink").href = g.toString(); r.classList.remove("hidden");
     } else r.classList.add("hidden");
     const msg = `${p}の動物病院で、猫の去勢・避妊手術が最短いつ取れたかを持ち寄るサイトです #さくらねこ #保護猫 #猫の去勢`;
@@ -442,7 +442,7 @@
       const body = r => {
         const called = parseDate(r.called), got = parseDate(r.got);
         const days = (called && got) ? Math.round((got - called) / 86400000) : null;
-        return (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(got ? fmt(got) : r.got)}）` : `最短 ${esc(got ? fmt(got) : r.got)}`)
+        return (days !== null ? `問い合わせから <span class="days">${days}日後</span> に手術できる（${esc(got ? fmt(got) : r.got)}）` : `最短 ${esc(got ? fmt(got) : r.got)}`)
           + (r.n ? `<span class="meta">（${r.n}匹）</span>` : "")
           + (r.pending ? ` <span class="meta">（送信済み・反映待ち）</span>` : "")
           + (r.h && mine.has(r.h) ? ` <button type="button" class="btn small" data-undo="${esc(r.h)}">この登録を取り消す</button>` : "")
@@ -586,7 +586,7 @@
     if (!mc && !fc) return err("去勢か避妊の匹数を1以上にしてください");
     const called = ymd.called.date();
     for (const [k, n, label] of [["maleDate", mc, "去勢"], ["femaleDate", fc, "避妊"]]) {
-      if (n && ymd[k].date() < called) return err(`${label}の手術日が、予約した日より前になっています`);
+      if (n && ymd[k].date() < called) return err(`${label}の手術できる日が、問い合わせた日より前になっています`);
     }
     const body = new URLSearchParams();
     const put = (k, v) => { if (E[k]) body.append(E[k], v); };
