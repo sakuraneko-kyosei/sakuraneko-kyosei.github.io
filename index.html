@@ -158,7 +158,9 @@
       <label>匹数 <select data-count="female"></select></label>
       <div class="kdate hidden" data-for="female"><div>最短で取れた手術日</div><div class="ymd" data-k="femaleDate"></div></div>
     </fieldset>
-    <label>備考（任意。術前検査・絶食など。個人が分かることは書かないでください）<textarea id="regNote" rows="2"></textarea></label>
+    <label>備考（任意。術前検査・絶食など。個人が分かることは書かないでください）<textarea id="regNote" rows="2" maxlength="200"></textarea></label>
+    <!-- 機械的な登録よけのおとり。人には見えず、自動入力するプログラムだけが埋める -->
+    <label aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden">ホームページ<input id="regHp" tabindex="-1" autocomplete="off"></label>
     <p class="err" id="regErr"></p>
     <div class="row"><button type="button" id="regCancel">やめる</button><button type="button" class="primary" id="regSend">送信する</button></div>
   </form>
@@ -244,7 +246,8 @@
         if (mc > 0 && at(r, iMd)) out.push({...base, kind: "去勢", got: at(r, iMd), n: mc});
         if (fc > 0 && at(r, iFd)) out.push({...base, kind: "避妊", got: at(r, iFd), n: fc});
         return out;
-      }).filter(x => x.clinic && x.got && !(x.h && delHashes.has(x.h)));
+      }).filter(x => x.clinic && x.got && !(x.h && delHashes.has(x.h)) && sane(x));
+      reports = dedupe(reports);
       mergeLocal();
       $("#status").textContent = `登録 ${reports.filter(r => !r.pending).length} 件`;
     } catch (e) {
@@ -462,6 +465,24 @@
     </div>`;
   }
 
+  // 荒らしよけ（表示の側）。フォームへ直接送られた物にも効くよう、あり得ない登録は数えない
+  function sane(r){
+    const DAY = 86400000, called = parseDate(r.called), got = parseDate(r.got);
+    if (r.n > 10 || r.n < 0) return false;
+    if (called && called - Date.now() > DAY) return false;          // 予約した日が未来
+    if (called && got && (got < called || got - called > 365 * DAY)) return false; // 手術日が予約日より前・1年より先
+    return true;
+  }
+  // 同じ病院・同じ種類へ10分以内に続いた登録は、最初の1件だけ数える（連投よけ）
+  function dedupe(rows){
+    const last = {};
+    return rows.slice().sort((a, b) => new Date(a.ts) - new Date(b.ts)).filter(r => {
+      // 種類は旧形式「去勢（オス）」と新形式「去勢」があるので、先頭の2文字で比べる
+      const k = [r.pref || "青森県", norm(r.clinic), norm(r.kind).slice(0, 2)].join("|"), t = new Date(r.ts).getTime();
+      if (last[k] !== undefined && t - last[k] < 10 * 60000) return false;
+      last[k] = t; return true;
+    });
+  }
   async function sha(s){ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
     return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("").slice(0, 32); }
   window.kyoseiSha = sha;
@@ -523,7 +544,10 @@
   const showDates = () => dlg.querySelectorAll(".kdate").forEach(d => d.classList.toggle("hidden", !cnt(d.dataset.for)));
   dlg.querySelectorAll("[data-count]").forEach(s => s.addEventListener("change", showDates));
 
-  let pref = "";
+  let pref = "", openedAt = 0;
+  // 荒らしよけ（サイトを通る送信だけに効く。フォームへ直接送る物は、表示の側で外す）
+  const RATE = "sakuraneko.sent", RATE_MAX = 5, RATE_WIN = 3600000, MIN_MS = 3000;
+  const recent = () => { try { return (JSON.parse(localStorage.getItem(RATE)) || []).filter(t => Date.now() - t < RATE_WIN); } catch (e) { return []; } };
   async function open(p, clinicName){
     pref = p;
     q("#regPref").textContent = `都道府県：${p}`;
@@ -540,6 +564,7 @@
     dlg.querySelectorAll("[data-count]").forEach(s => s.value = "0"); showDates();
     q("#regNote").value = ""; q("#regOther").value = listed ? "" : (clinicName || ""); q("#regErr").textContent = "";
     q("#regOtherL").classList.toggle("hidden", sel.value !== "__other");
+    q("#regHp").value = ""; openedAt = Date.now();
     dlg.showModal();
   }
   q("#regClinic").addEventListener("change", e => q("#regOtherL").classList.toggle("hidden", e.target.value !== "__other"));
@@ -547,6 +572,10 @@
 
   q("#regSend").addEventListener("click", async () => {
     const err = m => { q("#regErr").textContent = m; };
+    // おとりが埋まっていたら、送ったふりをして送らない
+    if (q("#regHp").value) { dlg.close(); alertBox("送信しました。ありがとうございます！"); return; }
+    if (Date.now() - openedAt < MIN_MS) return err("少し待ってから、もう一度押してください");
+    if (recent().length >= RATE_MAX) return err("短い時間に多くの登録がありました。1時間ほどあけてから登録してください");
     const v = q("#regClinic").value, clinic = v === "__other" ? q("#regOther").value.trim() : v;
     if (!clinic) return err("病院を選んでください");
     const mc = cnt("male"), fc = cnt("female");
@@ -577,6 +606,7 @@
     try {
       // Google フォームは CORS を返さないので結果は読めない（no-cors）。送れたかは回答シートに出るかで分かる
       await fetch(cfg.formUrl.replace(/\/viewform.*$/, "/formResponse"), {method: "POST", mode: "no-cors", body});
+      try { localStorage.setItem(RATE, JSON.stringify(recent().concat(Date.now()))); } catch (e) {}
       dlg.close();
       // 反映を待たずに、自分の登録を一覧へ仮に出す
       const d = x => `${x.y}-${pad(x.m)}-${pad(x.d)}`, base = {ts: new Date().toISOString(), pref, clinic, called: d(ymd.called.get()), note, h};

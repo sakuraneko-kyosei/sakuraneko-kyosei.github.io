@@ -11,11 +11,13 @@
 function addAdmin() {
   const form = findForm_();
   const TITLE = "管理用（入力しないでください）";
-  let item = form.getItems().find(i => i.getTitle() === TITLE);
-  if (!item) {
-    item = form.addTextItem().setTitle(TITLE)
+  const find = () => form.getItems().find(i => i.getTitle() === TITLE);
+  if (!find()) {
+    form.addTextItem().setTitle(TITLE)
       .setHelpText("サイトが自動で使う欄です。空のままにしてください。");
   }
+  // ⚠️ addTextItem の戻り値（TextItem）には asTextItem が無いので、足した後も汎用の Item として拾い直す
+  const item = find();
   // 事前入力 URL を作って entry ID を読む（ID は API から直接は取れない）
   const url = form.createResponse()
     .withItemResponse(item.asTextItem().createResponse("x"))

@@ -4,7 +4,7 @@ window.SITE_CONFIG = {
   formUrl: "https://docs.google.com/forms/d/e/1FAIpQLSdJL_81Ne1ks63IME6QABVh9riAJM0d-L75dH5VVUHX3CpSBw/viewform",
   // フォームの各設問の entry ID（tools/flatten_form.gs の flatten のログを貼る）。
   // 入っていれば全県で「登録する」を出し、県・病院名・今日の日付・匹数0を事前入力して開く
-  formEntries: {pref: "entry.1739476446", clinic: "entry.400639525", called: "entry.302042983", maleCount: "entry.926655885", maleDate: "entry.167439866", femaleCount: "entry.1648414951", femaleDate: "entry.1019954660", note: "entry.1944321604"},
+  formEntries: {pref: "entry.1739476446", clinic: "entry.400639525", called: "entry.302042983", maleCount: "entry.926655885", maleDate: "entry.167439866", femaleCount: "entry.1648414951", femaleDate: "entry.1019954660", note: "entry.1944321604", admin: "entry.651196966"},
 
   // 回答スプレッドシートを「ウェブに公開」した CSV の URL。
   // 列の並び（1行目が見出し）: タイムスタンプ, 病院名, 手術の種類, 電話した日, 最短で取れた日, 備考
