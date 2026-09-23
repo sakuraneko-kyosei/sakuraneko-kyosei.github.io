@@ -32,6 +32,10 @@
   .mission{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:8px;padding:12px 16px;margin:16px 0}
   .mission h2{font-size:1.05rem;margin:0 0 6px;color:var(--accent)}
   .mission p{margin:6px 0}
+  details.mission summary{cursor:pointer;list-style:none;font-weight:bold;font-size:1.05rem;color:var(--accent)}
+  details.mission summary::-webkit-details-marker{display:none}
+  details.mission summary::after{content:"　▼ タップで全文";font-size:.8rem;font-weight:normal;color:var(--muted,#888)}
+  details.mission[open] summary::after{content:"　▲ 閉じる"}
   .notice{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--warn);border-radius:8px;padding:12px 16px;margin:16px 0;font-size:.95rem}
   .notice ul{margin:6px 0 0;padding-left:20px}
   .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}
@@ -75,11 +79,11 @@
   </svg>
 </header>
 
-<section class="mission">
-  <h2>このサイトの願い</h2>
+<details class="mission">
+  <summary>このサイトの願い</summary>
   <p>野良猫を減らすいちばん確かな方法は、殺処分ではなく<strong>不妊・去勢手術</strong>です。手術を終えた猫の耳先を桜の花びらのように少し切って目印にする「<strong>さくらねこ</strong>」の活動（TNR：捕獲・手術・元の場所へ戻す）を、このサイトは応援します。</p>
   <p>このサイトを作ったきっかけも、元は野良だった2匹の猫に、少しでも早く去勢手術を受けさせたかったことでした。「どこなら早く予約が取れるか」が分かれば、保護した猫を一日でも早く手術に連れて行けます。予約が取れたら、その日付を一件だけ登録してください。次に困る誰かの助けになります。</p>
-</section>
+</details>
 
 <section class="notice">
   <strong>ご利用の前に</strong>
