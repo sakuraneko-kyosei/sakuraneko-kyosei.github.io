@@ -283,7 +283,7 @@
   // 前回の地域は、同じ県を開いた時だけ戻す（その県に無い地域は無視）
   if (saved.city && saved.pref === $("#pref").value && [...$("#city").options].some(o => o.value === saved.city)) $("#city").value = saved.city;
   render();
-  reportsReady.then(render);
+  reportsReady.then(() => { card.loaded = true; render(); });
 
   // 登録を受け付けているか（1ページのフォームの entry ID が config.js に入っていれば全県で受ける）
   // ⚠️ render() がこの宣言より先に走るので、const で持たず関数の中で読む（宣言前参照で落ちた）
@@ -390,14 +390,15 @@
                         .sort((a,b) => new Date(b.ts) - new Date(a.ts));
     // 去勢と避妊は空き具合が違うので、種類ごとに最新を1行ずつ出す
     const line = (label, rows) => {
-      if (!rows.length) return `<div><b>${label}</b> <span class="none">まだ登録がありません</span></div>`;
+      // ⚠️ 一覧は登録（CSV）を待たずに先に描くので、届くまでは「無い」と言わない
+      if (!rows.length) return `<div><b>${label}</b> <span class="none">${card.loaded ? "まだ登録がありません" : "読み込み中…"}</span></div>`;
       const r = rows[0];
       const ts = new Date(r.ts);
       const age = Math.floor((Date.now() - ts) / 86400000);
       const called = parseDate(r.called), got = parseDate(r.got);
       const days = (called && got) ? Math.round((got - called) / 86400000) : null;
       return `<div><b>${label}</b> <span class="${age > (cfg.staleDays||90) ? "stale" : ""}">最新の登録（${esc(fmt(ts))}、${age}日前）：</span> `
-           + (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(r.got)}）` : `最短 ${esc(r.got)}`)
+           + (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(got ? fmt(got) : r.got)}）` : `最短 ${esc(got ? fmt(got) : r.got)}`)
            + (r.n ? `<span class="meta">（${r.n}匹）</span>` : "")
            + (r.note ? `<br><span class="meta">${esc(r.note)}</span>` : "")
            + (rows.length > 1 ? `<span class="meta">（他 ${rows.length-1} 件）</span>` : "") + `</div>`;
@@ -416,7 +417,10 @@
   }
 
   function norm(s){ return String(s||"").replace(/[\s　]/g,"").normalize("NFKC"); }
-  function parseDate(s){ if(!s) return null; const m = String(s).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/); return m ? new Date(+m[1], m[2]-1, +m[3]) : null; }
+  // 年が先（2026/9/23、2026-09-23）と、回答シートの書き出す月/日/年（9/23/2026）の両方を読む
+  function parseDate(s){ if(!s) return null; s = String(s);
+    let m = s.match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/); if (m) return new Date(+m[1], m[2]-1, +m[3]);
+    m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); return m ? new Date(+m[3], m[1]-1, +m[2]) : null; }
   function fmt(d){ return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
   function parseCsv(t){ // 引用符と改行を含む値に対応した最小の CSV パーサ
     const rows=[]; let row=[], cur="", q=false;
