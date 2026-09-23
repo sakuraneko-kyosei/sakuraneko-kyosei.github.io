@@ -9,7 +9,7 @@ window.SITE_CONFIG = {
   // 回答スプレッドシートを「ウェブに公開」した CSV の URL。
   // 列の並び（1行目が見出し）: タイムスタンプ, 病院名, 手術の種類, 電話した日, 最短で取れた日, 備考
   // 空なら「登録はまだありません」と出るだけで、病院一覧は動く。
-  sheetCsvUrl: "",
+  sheetCsvUrl: "https://docs.google.com/spreadsheets/d/e/2PACX-1vRJ8nUPYwdhdCDkHrDo3jtMk6DSOrPnPjtoNwTOJ0uqFsSFzWiO9VT4bQ2z3ZAD1MUJci8mwWmkTAQR/pub?gid=1149079771&single=true&output=csv",
 
   // 登録から何日経ったら「古い」と表示するか
   staleDays: 90,
