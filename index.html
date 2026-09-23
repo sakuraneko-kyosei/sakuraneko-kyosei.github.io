@@ -221,7 +221,7 @@
   // 今のフォームは1行に去勢と避妊の匹数・最短日を持つので、1行から最大2件を作る。
   // 旧形式（手術の種類＋最短で取れた手術日、県ごとの「病院名（◯◯県）」列）の行もそのまま読む
   // ⚠️ Google の CSV は応答が数秒かかることがあるので待たない。一覧を先に出し、届いたら描き直す（遅延読み込み）
-  let reports = [];
+  let reports = [], arrived = new Set();
   const reportsReady = (async () => {
   if (cfg.sheetCsvUrl) {
     $("#status").textContent = "登録を読み込み中…";
@@ -247,7 +247,10 @@
         if (mc > 0 && at(r, iMd)) out.push({...base, kind: "去勢", got: at(r, iMd), n: mc});
         if (fc > 0 && at(r, iFd)) out.push({...base, kind: "避妊", got: at(r, iFd), n: fc});
         return out;
-      }).filter(x => x.clinic && x.got && !(x.h && delHashes.has(x.h)) && sane(x));
+      });
+      // 仮表示を外すかは、絞り込む前の全行で見る（連投や取り消しで外した行も「届いた」には数える）
+      arrived = new Set(reports.filter(x => x.h).map(x => x.h + "|" + x.kind));
+      reports = reports.filter(x => x.clinic && x.got && !(x.h && delHashes.has(x.h)) && sane(x));
       reports = dedupe(reports);
       mergeLocal();
       $("#status").textContent = `登録 ${reports.filter(r => !r.pending).length} 件`;
@@ -267,7 +270,7 @@
   function mergeLocal(){
     // 同じ登録かは、鍵のハッシュがあればそれで、無ければ県・病院・種類・手術日で見る
     const same = r => r.h ? r.h + "|" + r.kind : [r.pref, norm(r.clinic), r.kind, parseDate(r.got) && fmt(parseDate(r.got))].join("|");
-    const now = Date.now(), have = new Set(reports.filter(r => !r.pending).map(same));
+    const now = Date.now(), have = new Set([...reports.filter(r => !r.pending).map(same), ...arrived]);
     // CSV に載った物と、30分たっても載らない物は仮表示をやめる
     const pend = LS.get(PEND).filter(r => now - r.at < HOLD && !have.has(same(r)));
     LS.put(PEND, pend);
