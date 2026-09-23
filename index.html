@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>青森 猫の去勢・避妊 最短予約日</title>
+<meta name="description" content="青森県の動物病院で猫の去勢・避妊手術が最短いつ取れたか、みんなで持ち寄る掲示板。野良猫の保護・さくらねこ活動を応援します。">
+<style>
+  :root{--bg:#fffdf8;--fg:#2b2b2b;--muted:#6b6b6b;--line:#e6dfd2;--accent:#d96c8a;--accent2:#5b8c5a;--warn:#b35c00;--card:#fff}
+  @media (prefers-color-scheme:dark){:root{--bg:#1c1b19;--fg:#ececec;--muted:#a7a7a7;--line:#3a3833;--card:#26241f}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.6}
+  main{max-width:960px;margin:0 auto;padding:16px}
+  header{border-bottom:2px solid var(--accent);padding-bottom:12px;margin-bottom:16px}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  .lead{color:var(--muted);margin:0}
+  .mission{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:8px;padding:12px 16px;margin:16px 0}
+  .mission h2{font-size:1.05rem;margin:0 0 6px;color:var(--accent)}
+  .mission p{margin:6px 0}
+  .notice{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--warn);border-radius:8px;padding:12px 16px;margin:16px 0;font-size:.95rem}
+  .notice ul{margin:6px 0 0;padding-left:20px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}
+  select,button,a.btn{font:inherit;padding:8px 12px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+  a.btn{text-decoration:none;display:inline-block}
+  a.btn.primary,button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  a.btn.small{padding:4px 8px;font-size:.85rem}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:10px 0}
+  .card h3{margin:0 0 4px;font-size:1.1rem}
+  .meta{color:var(--muted);font-size:.9rem}
+  .meta a{color:inherit}
+  .latest{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:.95rem}
+  .latest .days{font-weight:700;color:var(--accent2)}
+  .latest .stale{color:var(--warn)}
+  .latest .none{color:var(--muted)}
+  .city{margin:20px 0 6px;font-size:1.15rem;border-bottom:1px solid var(--line)}
+  footer{margin:32px 0 16px;color:var(--muted);font-size:.85rem}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>青森 猫の去勢・避妊 最短予約日</h1>
+  <p class="lead">県内の動物病院で「最短いつ手術が取れたか」を、予約した人が持ち寄る掲示板です。</p>
+</header>
+
+<section class="mission">
+  <h2>このサイトの願い</h2>
+  <p>野良猫を減らすいちばん確かな方法は、殺処分ではなく<strong>不妊・去勢手術</strong>です。手術を終えた猫の耳先を桜の花びらのように少し切って目印にする「<strong>さくらねこ</strong>」の活動（TNR：捕獲・手術・元の場所へ戻す）を、このサイトは応援します。</p>
+  <p>このサイトを作ったきっかけも、元は野良だった2匹の猫の去勢を早く取りたかったことでした。「どこなら早く取れるか」が分かれば、保護した猫を一日でも早く手術に連れて行けます。予約が取れたら、その日付を一件だけ登録してください。次に困る誰かの助けになります。</p>
+</section>
+
+<section class="notice">
+  <strong>ご利用の前に</strong>
+  <ul>
+    <li>ここに載る日付は、予約した方が<strong>善意で登録した記録</strong>です。病院の公式情報ではなく、<strong>最短である保証もありません</strong>。登録日時が古いほど当てになりません。</li>
+    <li>実際の空きは日々変わります。<strong>必ず病院へ電話して確認</strong>してください。</li>
+    <li>病院名・住所・電話・診療時間は公開情報から転記したものです。誤りの訂正や掲載についてのご連絡は、下のフォームからお願いします。</li>
+  </ul>
+</section>
+
+<div class="toolbar">
+  <label>地域：<select id="city"><option value="">すべて</option></select></label>
+  <a id="formBtn" class="btn primary hidden" href="#" target="_blank" rel="noopener">最短日を登録する</a>
+  <span id="status" class="meta"></span>
+</div>
+
+<div id="list"></div>
+
+<footer>
+  <p id="source"></p>
+  <p>このサイトは個人が運営する非営利の情報共有サイトです。特定の病院を推奨・評価するものではありません。</p>
+</footer>
+</main>
+
+<script src="config.js"></script>
+<script>
+(async function(){
+  const cfg = window.SITE_CONFIG || {};
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+  // 病院一覧
+  const data = await fetch("data/clinics.json").then(r => r.json());
+  const clinics = data.clinics;
+  $("#source").textContent = "病院情報の出典: " + data.source;
+
+  // 登録（Sheets 公開 CSV）
+  let reports = [];
+  if (cfg.sheetCsvUrl) {
+    try {
+      const txt = await fetch(cfg.sheetCsvUrl, {cache:"no-store"}).then(r => r.text());
+      reports = parseCsv(txt).slice(1).filter(r => r.length >= 5 && r[1]);
+      $("#status").textContent = `登録 ${reports.length} 件`;
+    } catch (e) {
+      $("#status").textContent = "登録データを読めませんでした";
+    }
+  } else {
+    $("#status").textContent = "登録はまだありません";
+  }
+
+  // フォームボタン
+  if (cfg.formUrl) { const b = $("#formBtn"); b.href = cfg.formUrl; b.classList.remove("hidden"); }
+
+  // 地域セレクタ（clinics.json の並び順を保つ）
+  const cities = [...new Set(clinics.map(c => c.city))];
+  for (const c of cities) { const o = document.createElement("option"); o.value = o.textContent = c; $("#city").appendChild(o); }
+  $("#city").addEventListener("change", render);
+  render();
+
+  function render(){
+    const sel = $("#city").value;
+    const html = [];
+    for (const city of cities) {
+      if (sel && city !== sel) continue;
+      html.push(`<h2 class="city">${esc(city)}</h2>`);
+      for (const c of clinics.filter(x => x.city === city)) html.push(card(c));
+    }
+    $("#list").innerHTML = html.join("");
+  }
+
+  function card(c){
+    const mine = reports.filter(r => norm(r[1]) === norm(c.name))
+                        .sort((a,b) => new Date(b[0]) - new Date(a[0]));
+    let latest;
+    if (!mine.length) latest = `<span class="none">まだ登録がありません</span>`;
+    else {
+      const r = mine[0];
+      const ts = new Date(r[0]);
+      const age = Math.floor((Date.now() - ts) / 86400000);
+      const called = parseDate(r[3]), got = parseDate(r[4]);
+      const days = (called && got) ? Math.round((got - called) / 86400000) : null;
+      latest = `<span class="${age > (cfg.staleDays||90) ? "stale" : ""}">最新の登録（${esc(fmt(ts))}、${age}日前）：</span> `
+             + (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(r[4])}）` : `最短 ${esc(r[4])}`)
+             + (r[2] ? ` ／ ${esc(r[2])}` : "")
+             + (r[5] ? `<br><span class="meta">${esc(r[5])}</span>` : "")
+             + (mine.length > 1 ? `<span class="meta">（他 ${mine.length-1} 件）</span>` : "");
+    }
+    let link = "";
+    if (cfg.formUrl) {
+      const u = new URL(cfg.formUrl);
+      if (cfg.formClinicEntry) u.searchParams.set(cfg.formClinicEntry, c.name);
+      link = ` <a class="btn small" href="${esc(u.toString())}" target="_blank" rel="noopener">この病院の最短日を登録</a>`;
+    }
+    return `<div class="card">
+      <h3>${esc(c.name)}</h3>
+      <div class="meta">${esc(c.address)} ／ <a href="tel:${esc(c.tel.replace(/-/g,""))}">${esc(c.tel)}</a>${c.hours ? " ／ " + esc(c.hours) : ""}</div>
+      <div class="latest">${latest}${link}</div>
+    </div>`;
+  }
+
+  function norm(s){ return String(s||"").replace(/[\s　]/g,"").normalize("NFKC"); }
+  function parseDate(s){ if(!s) return null; const m = String(s).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/); return m ? new Date(+m[1], m[2]-1, +m[3]) : null; }
+  function fmt(d){ return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
+  function parseCsv(t){ // 引用符と改行を含む値に対応した最小の CSV パーサ
+    const rows=[]; let row=[], cur="", q=false;
+    for (let i=0;i<t.length;i++){ const ch=t[i];
+      if (q){ if (ch==='"'){ if (t[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+      else if (ch==='"') q=true;
+      else if (ch===','){ row.push(cur); cur=""; }
+      else if (ch==='\n'||ch==='\r'){ if (ch==='\r'&&t[i+1]==='\n') i++; row.push(cur); rows.push(row); row=[]; cur=""; }
+      else cur+=ch; }
+    if (cur!==""||row.length){ row.push(cur); rows.push(row); }
+    return rows;
+  }
+})();
+</script>
+</body>
+</html>
