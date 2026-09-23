@@ -2,13 +2,9 @@
 window.SITE_CONFIG = {
   // Googleフォームの「送信用リンク」（.../viewform）。空ならボタンを隠す。
   formUrl: "https://docs.google.com/forms/d/e/1FAIpQLSdJL_81Ne1ks63IME6QABVh9riAJM0d-L75dH5VVUHX3CpSBw/viewform",
-  // フォームの「病院名」設問の entry ID（例 "entry.123456789"）。
-  // 入れると、病院の行の「登録する」からフォームを開いた時に病院名が入った状態になる。
-  formClinicEntry: "entry.1257505099", // 旧形式（県で分ける前）。今は formClinicEntries を使う
-  // 「都道府県」設問の entry ID と、県ごとの「病院名（◯◯県）」設問の entry ID。
-  // tools/restructure_form.gs の syncClinics のログを貼る。ここに無い県は登録ボタンを出さない
-  formPrefEntry: "",
-  formClinicEntries: {"青森県": "entry.1257505099"},
+  // フォームの各設問の entry ID（tools/flatten_form.gs の flatten のログを貼る）。
+  // 入っていれば全県で「登録する」を出し、県・病院名・今日の日付・匹数0を事前入力して開く
+  formEntries: {pref: "entry.1739476446", clinic: "entry.400639525", called: "entry.302042983", maleCount: "entry.926655885", maleDate: "entry.167439866", femaleCount: "entry.1648414951", femaleDate: "entry.1019954660"},
 
   // 回答スプレッドシートを「ウェブに公開」した CSV の URL。
   // 列の並び（1行目が見出し）: タイムスタンプ, 病院名, 手術の種類, 電話した日, 最短で取れた日, 備考

@@ -171,7 +171,9 @@
   };
   let clinics = [];
 
-  // 登録（Sheets 公開 CSV）。列は見出しの名前で探す（フォームは県ごとに「病院名（◯◯県）」の列が分かれる）
+  // 登録（Sheets 公開 CSV）。列は見出しの名前で探す。
+  // 今のフォームは1行に去勢と避妊の匹数・最短日を持つので、1行から最大2件を作る。
+  // 旧形式（手術の種類＋最短で取れた手術日、県ごとの「病院名（◯◯県）」列）の行もそのまま読む
   let reports = [];
   if (cfg.sheetCsvUrl) {
     try {
@@ -179,12 +181,19 @@
       const rows = parseCsv(txt), head = (rows[0] || []).map(h => h.trim());
       const col = t => head.findIndex(h => h.startsWith(t));
       const iPref = col("都道府県"), iKind = col("手術の種類"), iCall = col("電話"), iGot = col("最短"), iNote = col("備考");
+      const iMc = col("去勢（オス）の匹数"), iMd = col("去勢の最短"), iFc = col("避妊（メス）の匹数"), iFd = col("避妊の最短");
       const iClin = head.map((h, i) => h.startsWith("病院名") ? i : -1).filter(i => i >= 0);
       const at = (r, i) => i >= 0 ? (r[i] || "") : "";
-      reports = rows.slice(1).map(r => ({
-        ts: r[0], pref: at(r, iPref), clinic: iClin.map(i => r[i]).find(v => v && v.trim()) || "",
-        kind: at(r, iKind), called: at(r, iCall), got: at(r, iGot), note: at(r, iNote),
-      })).filter(x => x.clinic && x.got);
+      reports = rows.slice(1).flatMap(r => {
+        const base = {ts: r[0], pref: at(r, iPref), clinic: iClin.map(i => r[i]).find(v => v && v.trim()) || "",
+                      called: at(r, iCall), note: at(r, iNote)};
+        const out = [];
+        if (at(r, iKind) && at(r, iGot)) out.push({...base, kind: at(r, iKind), got: at(r, iGot), n: 0});
+        const mc = parseInt(at(r, iMc)) || 0, fc = parseInt(at(r, iFc)) || 0;
+        if (mc > 0 && at(r, iMd)) out.push({...base, kind: "去勢", got: at(r, iMd), n: mc});
+        if (fc > 0 && at(r, iFd)) out.push({...base, kind: "避妊", got: at(r, iFd), n: fc});
+        return out;
+      }).filter(x => x.clinic && x.got);
       $("#status").textContent = `登録 ${reports.length} 件`;
     } catch (e) {
       $("#status").textContent = "登録データを読めませんでした";
@@ -229,13 +238,18 @@
   if (saved.city && saved.pref === $("#pref").value && [...$("#city").options].some(o => o.value === saved.city)) $("#city").value = saved.city;
   render();
 
-  // 登録を受け付けている県か（フォームにその県の病院のセクションがあり、entry ID が分かっている県）
-  function formOpen(p){ return !!cfg.formUrl && !!(cfg.formClinicEntries || {})[p]; }
-  // 県（と病院）を事前入力したフォームの URL
+  // 登録を受け付けているか（1ページのフォームの entry ID が config.js に入っていれば全県で受ける）
+  // ⚠️ render() がこの宣言より先に走るので、const で持たず関数の中で読む（宣言前参照で落ちた）
+  function formOpen(p){ const E = cfg.formEntries || {}; return !!cfg.formUrl && !!E.pref && !!E.clinic; }
+  // 県・病院・今日の日付・匹数0を事前入力したフォームの URL（日付はカレンダーから変えられる）
   function formLink(p, c){
-    const u = new URL(cfg.formUrl);
-    if (cfg.formPrefEntry) u.searchParams.set(cfg.formPrefEntry, p);
-    if (c) u.searchParams.set(cfg.formClinicEntries[p], c.formName || c.name);
+    const E = cfg.formEntries || {}, u = new URL(cfg.formUrl), d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    const set = (k, v) => { if (E[k]) u.searchParams.set(E[k], v); };
+    set("pref", p);
+    if (c) set("clinic", c.formName || c.name);
+    set("called", today); set("maleDate", today); set("femaleDate", today);
+    set("maleCount", "0"); set("femaleCount", "0");
     return u.toString();
   }
 
@@ -311,6 +325,7 @@
       const days = (called && got) ? Math.round((got - called) / 86400000) : null;
       return `<div><b>${label}</b> <span class="${age > (cfg.staleDays||90) ? "stale" : ""}">最新の登録（${esc(fmt(ts))}、${age}日前）：</span> `
            + (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(r.got)}）` : `最短 ${esc(r.got)}`)
+           + (r.n ? `<span class="meta">（${r.n}匹）</span>` : "")
            + (r.note ? `<br><span class="meta">${esc(r.note)}</span>` : "")
            + (rows.length > 1 ? `<span class="meta">（他 ${rows.length-1} 件）</span>` : "") + `</div>`;
     };

@@ -18,6 +18,10 @@ function flatten() {
   if (form.getItems().some(i => i.getTitle() === "去勢（オス）の匹数")) throw new Error("作り直し済み");
   const T = FormApp.ItemType;
 
+  // 0. ページへの参照（県の選択肢の分岐・各ページの行き先）を先に外す。参照されたままでは消せない
+  byTitle_(form, T.LIST, PREF_Q).asListItem().setChoiceValues(PREFS);
+  form.getItems(T.PAGE_BREAK).forEach(p => p.asPageBreakItem().setGoToPage(FormApp.PageNavigationType.CONTINUE));
+
   // 1. 県ごとのページと病院名の設問、旧「手術の種類」「最短で取れた手術日」を消す
   for (const it of form.getItems().slice().reverse()) {
     const t = it.getTitle();
