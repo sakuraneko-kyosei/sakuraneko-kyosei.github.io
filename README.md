@@ -32,6 +32,19 @@ data/clinics.json  病院の公開情報（名前・住所・電話・診療時�
 
 ## Googleフォームの作り方
 
+### 自動（推奨）: `tools/create_form.gs`
+
+1. https://script.google.com/ で新しいプロジェクトを作り、`tools/create_form.gs` を全部貼る
+2. `createForm` を実行し、Google アカウントの許可を出す
+3. 実行ログの `formUrl` と `formClinicEntry` の行を `config.js` へ貼る
+4. ログに出たスプレッドシートを開き、ファイル → 共有 → ウェブに公開 →
+   「フォームの回答 1」/ CSV で公開。その URL を `config.js` の `sheetCsvUrl` へ
+
+病院名はプルダウン（`clinics.json` と同じ 38 件 + その他）。自由入力だと
+表記揺れでサイトの病院と一致しなくなるため。病院を足したら両方を直す。
+
+### 手動
+
 1. Google フォームを新規作成。設問はこの順で:
    1. 病院名（記述式、必須）
    2. 手術の種類（選択式: 去勢（オス）／避妊（メス））
