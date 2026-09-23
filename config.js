@@ -19,6 +19,11 @@ window.SITE_CONFIG = {
   // 初めて来た人に開く県。URL の ?pref= と、前回選んだ県（ブラウザに保存）が優先される
   defaultPref: "東京都",
 
+  // 「載っていない病院を知らせる」フォーム（tools/create_clinic_form.gs で作る）。空ならボタンを隠す。
+  // 回答はサイトに自動では載らない。運営者が確かめて data/clinics.json へ足す。
+  clinicFormUrl: "",
+  clinicPrefEntry: "", // 「都道府県」設問の entry ID。入れると今の県が選ばれた状態で開く
+
   // 登録から何日経ったら「古い」と表示するか
   staleDays: 90,
 };

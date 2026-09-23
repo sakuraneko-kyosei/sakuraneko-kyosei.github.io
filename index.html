@@ -70,6 +70,7 @@
   <label>都道府県：<select id="pref"></select></label>
   <label>地域：<select id="city"><option value="">すべて</option></select></label>
   <a id="formBtn" class="btn primary hidden" href="#" target="_blank" rel="noopener">最短日を登録する</a>
+  <a id="clinicBtn" class="btn hidden" href="#" target="_blank" rel="noopener">載っていない病院を知らせる</a>
   <span id="status" class="meta"></span>
 </div>
 <div class="toolbar">
@@ -164,6 +165,13 @@
     document.title = `${p} 猫の去勢・避妊 最短予約日`;
     const b = $("#formBtn");
     if (formOpen(p)) { b.href = cfg.formUrl; b.classList.remove("hidden"); } else b.classList.add("hidden");
+    // 病院の追加依頼は全県で受ける（運営者が確かめてから clinics.json へ足す）。今の県を事前入力する。
+    const cb = $("#clinicBtn");
+    if (cfg.clinicFormUrl) {
+      const u = new URL(cfg.clinicFormUrl);
+      if (cfg.clinicPrefEntry) u.searchParams.set(cfg.clinicPrefEntry, p);
+      cb.href = u.toString(); cb.classList.remove("hidden");
+    } else cb.classList.add("hidden");
     // 導線: 予約した人が数日後に戻って登録できるよう、カレンダーへ予定を入れるリンク。
     // 共有は、いま開いている県のページ（?pref=）を渡す。
     const page = `https://sakuraneko-kyosei.github.io/?pref=${encodeURIComponent(p)}`;
