@@ -25,6 +25,8 @@
   header .cat{position:absolute;right:8px;bottom:-6px;width:110px;height:auto;opacity:.85;pointer-events:none}
   @media (max-width:480px){header{padding-right:84px} header .cat{width:80px}}
   h1{font-size:1.5rem;margin:0 0 4px}
+  details.more summary{cursor:pointer;display:inline-block;text-decoration:underline}
+  details.more ul{margin:4px 0 0;padding-left:1.2em;font-size:.9rem}
   .lead{color:var(--muted);margin:0}
   .joke{margin:6px 0 0;font-size:.8rem;color:var(--accent)}
   .qr{display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:.75rem;color:var(--muted)}
@@ -227,18 +229,24 @@
       const iPref = col("都道府県"), iKind = col("手術の種類"), iCall = col("電話"), iGot = col("最短"), iNote = col("備考");
       const iMc = col("去勢（オス）の匹数"), iMd = col("去勢の最短"), iFc = col("避妊（メス）の匹数"), iFd = col("避妊の最短");
       const iClin = head.map((h, i) => h.startsWith("病院名") ? i : -1).filter(i => i >= 0);
+      const iAdm = col("管理用");
       const at = (r, i) => i >= 0 ? (r[i] || "") : "";
+      // 管理用の欄: 登録の行は「k:<鍵のハッシュ>」、取り消しの行は「d:<鍵>」。鍵のハッシュが一致した登録を外す
+      const delKeys = rows.slice(1).map(r => at(r, iAdm).trim()).filter(v => v.startsWith("d:")).map(v => v.slice(2));
+      const delHashes = new Set(await Promise.all(delKeys.map(sha)));
       reports = rows.slice(1).flatMap(r => {
+        const adm = at(r, iAdm).trim();
         const base = {ts: r[0], pref: at(r, iPref), clinic: iClin.map(i => r[i]).find(v => v && v.trim()) || "",
-                      called: at(r, iCall), note: at(r, iNote)};
+                      called: at(r, iCall), note: at(r, iNote), h: adm.startsWith("k:") ? adm.slice(2) : ""};
         const out = [];
         if (at(r, iKind) && at(r, iGot)) out.push({...base, kind: at(r, iKind), got: at(r, iGot), n: 0});
         const mc = parseInt(at(r, iMc)) || 0, fc = parseInt(at(r, iFc)) || 0;
         if (mc > 0 && at(r, iMd)) out.push({...base, kind: "去勢", got: at(r, iMd), n: mc});
         if (fc > 0 && at(r, iFd)) out.push({...base, kind: "避妊", got: at(r, iFd), n: fc});
         return out;
-      }).filter(x => x.clinic && x.got);
-      $("#status").textContent = `登録 ${reports.length} 件`;
+      }).filter(x => x.clinic && x.got && !(x.h && delHashes.has(x.h)));
+      mergeLocal();
+      $("#status").textContent = `登録 ${reports.filter(r => !r.pending).length} 件`;
     } catch (e) {
       $("#status").textContent = "登録データを読めませんでした";
     }
@@ -246,6 +254,37 @@
     $("#status").textContent = "登録はまだありません";
   }
   })();
+
+  // このブラウザで送った登録と取り消し。Google の CSV へ反映されるまで数分かかるので、その間はここから出す。
+  // ⚠️ 置き場はこの閲覧者のブラウザだけ。使えない（プライベートウィンドウ等）時は、反映を待つだけで動く。
+  const LS = {get(k){ try { return JSON.parse(localStorage.getItem(k)) || []; } catch (e) { return []; } },
+              put(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }};
+  const MINE = "sakuraneko.mine", PEND = "sakuraneko.pending", DEL = "sakuraneko.deleted", HOLD = 30 * 60000;
+  function mergeLocal(){
+    // 同じ登録かは、鍵のハッシュがあればそれで、無ければ県・病院・種類・手術日で見る
+    const same = r => r.h ? r.h + "|" + r.kind : [r.pref, norm(r.clinic), r.kind, parseDate(r.got) && fmt(parseDate(r.got))].join("|");
+    const now = Date.now(), have = new Set(reports.filter(r => !r.pending).map(same));
+    // CSV に載った物と、30分たっても載らない物は仮表示をやめる
+    const pend = LS.get(PEND).filter(r => now - r.at < HOLD && !have.has(same(r)));
+    LS.put(PEND, pend);
+    const del = LS.get(DEL).filter(d => now - d.at < HOLD); LS.put(DEL, del);
+    const gone = new Set(del.map(d => d.h));
+    reports = reports.filter(r => !r.pending && !gone.has(r.h)).concat(pend.filter(r => !gone.has(r.h)).map(r => ({...r, pending: true})));
+  }
+  const mineSet = () => new Set(LS.get(MINE).map(m => m.h));
+  // 登録画面（別の script）から、送った登録・取り消しを受け取って描き直す
+  window.addEventListener("kyosei:sent", e => {
+    const now = Date.now();
+    if (e.detail.del) LS.put(DEL, LS.get(DEL).concat({h: e.detail.del, at: now}));
+    else LS.put(PEND, LS.get(PEND).concat(e.detail.rows.map(r => ({...r, at: now}))));
+    mergeLocal(); render();
+  });
+  $("#list").addEventListener("click", e => {
+    const b = e.target.closest && e.target.closest("button[data-undo]");
+    if (!b) return;
+    const m = LS.get(MINE).find(x => x.h === b.dataset.undo);
+    if (m) window.dispatchEvent(new CustomEvent("kyosei:undo", {detail: m}));
+  });
 
   // 都道府県セレクタ。病院データのある県には件数を付ける。
   // 選んだ県は URL（?pref=青森県）に残すので、県ごとのページとして共有できる。
@@ -386,26 +425,33 @@
   function card(c){
     // 県＋フォームの選択肢名で照合（別の県の同名病院と混ざらない）。
     // 県の列が無かった頃の登録は青森県だけだったので、県が空なら青森県とみなす
-    const mine = reports.filter(r => (r.pref || "青森県") === c.pref && norm(r.clinic) === norm(c.formName || c.name))
+    const own = reports.filter(r => (r.pref || "青森県") === c.pref && norm(r.clinic) === norm(c.formName || c.name))
                         .sort((a,b) => new Date(b.ts) - new Date(a.ts));
     // 去勢と避妊は空き具合が違うので、種類ごとに最新を1行ずつ出す
     const line = (label, rows) => {
       // ⚠️ 一覧は登録（CSV）を待たずに先に描くので、届くまでは「無い」と言わない
       if (!rows.length) return `<div><b>${label}</b> <span class="none">${card.loaded ? "まだ登録がありません" : "読み込み中…"}</span></div>`;
-      const r = rows[0];
-      const ts = new Date(r.ts);
-      const age = Math.floor((Date.now() - ts) / 86400000);
-      const called = parseDate(r.called), got = parseDate(r.got);
-      const days = (called && got) ? Math.round((got - called) / 86400000) : null;
+      // 1件分の中身（手術日・匹数・反映待ち・取り消し・備考）。最新にも「他 N 件」の中にも使う
+      const body = r => {
+        const called = parseDate(r.called), got = parseDate(r.got);
+        const days = (called && got) ? Math.round((got - called) / 86400000) : null;
+        return (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(got ? fmt(got) : r.got)}）` : `最短 ${esc(got ? fmt(got) : r.got)}`)
+          + (r.n ? `<span class="meta">（${r.n}匹）</span>` : "")
+          + (r.pending ? ` <span class="meta">（送信済み・反映待ち）</span>` : "")
+          + (r.h && mine.has(r.h) ? ` <button type="button" class="btn small" data-undo="${esc(r.h)}">この登録を取り消す</button>` : "")
+          + (r.note ? `<br><span class="meta">${esc(r.note)}</span>` : "");
+      };
+      const when = r => { const ts = new Date(r.ts); return {ts, age: Math.max(0, Math.floor((Date.now() - ts) / 86400000))}; };
+      const r = rows[0], {ts, age} = when(r);
+      const more = rows.slice(1).map(x => { const w = when(x); return `<li>${esc(fmt(w.ts))}（${w.age}日前）：${body(x)}</li>`; }).join("");
       return `<div><b>${label}</b> <span class="${age > (cfg.staleDays||90) ? "stale" : ""}">最新の登録（${esc(fmt(ts))}、${age}日前）：</span> `
-           + (days !== null ? `電話から <span class="days">${days}日後</span> に手術（${esc(got ? fmt(got) : r.got)}）` : `最短 ${esc(got ? fmt(got) : r.got)}`)
-           + (r.n ? `<span class="meta">（${r.n}匹）</span>` : "")
-           + (r.note ? `<br><span class="meta">${esc(r.note)}</span>` : "")
-           + (rows.length > 1 ? `<span class="meta">（他 ${rows.length-1} 件）</span>` : "") + `</div>`;
+           + body(r)
+           + (rows.length > 1 ? `<details class="more"><summary class="meta">他 ${rows.length-1} 件</summary><ul>${more}</ul></details>` : "") + `</div>`;
     };
+    const mine = mineSet();
     const kind = (r, k) => norm(r.kind).startsWith(k);
-    const latest = line("去勢（オス）", mine.filter(r => kind(r, "去勢")))
-                 + line("避妊（メス）", mine.filter(r => kind(r, "避妊")));
+    const latest = line("去勢（オス）", own.filter(r => kind(r, "去勢")))
+                 + line("避妊（メス）", own.filter(r => kind(r, "避妊")));
     const link = formOpen(c.pref)
       ? ` <a class="btn small" href="${esc(formLink(c.pref, c))}" target="_blank" rel="noopener">この病院の最短日を登録</a>` : "";
     return `<div class="card${c.unlisted ? " unlisted" : ""}">
@@ -416,6 +462,9 @@
     </div>`;
   }
 
+  async function sha(s){ const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+    return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("").slice(0, 32); }
+  window.kyoseiSha = sha;
   function norm(s){ return String(s||"").replace(/[\s　]/g,"").normalize("NFKC"); }
   // 年が先（2026/9/23、2026-09-23）と、回答シートの書き出す月/日/年（9/23/2026）の両方を読む
   function parseDate(s){ if(!s) return null; s = String(s);
@@ -513,16 +562,46 @@
     put("maleCount", String(mc)); put("femaleCount", String(fc));
     if (mc) putDate("maleDate");
     if (fc) putDate("femaleDate");
-    if (E.note && q("#regNote").value.trim()) put("note", q("#regNote").value.trim());
+    const note = q("#regNote").value.trim();
+    if (E.note && note) put("note", note);
+    // 取り消し用の鍵。鍵はこのブラウザにだけ置き、公開の回答シートへはハッシュだけ送る
+    let h = "";
+    if (E.admin && window.crypto && crypto.subtle && window.kyoseiSha) {
+      const key = [...crypto.getRandomValues(new Uint8Array(16))].map(x => x.toString(16).padStart(2, "0")).join("");
+      h = await window.kyoseiSha(key);
+      put("admin", "k:" + h);
+      try { const k = "sakuraneko.mine", l = JSON.parse(localStorage.getItem(k)) || [];
+        l.push({h, key, pref, clinic, at: Date.now()}); localStorage.setItem(k, JSON.stringify(l)); } catch (e) {}
+    }
     q("#regSend").disabled = true; err("");
     try {
       // Google フォームは CORS を返さないので結果は読めない（no-cors）。送れたかは回答シートに出るかで分かる
       await fetch(cfg.formUrl.replace(/\/viewform.*$/, "/formResponse"), {method: "POST", mode: "no-cors", body});
       dlg.close();
-      alertBox("送信しました。ありがとうございます！ サイトへの反映には数分かかります。");
+      // 反映を待たずに、自分の登録を一覧へ仮に出す
+      const d = x => `${x.y}-${pad(x.m)}-${pad(x.d)}`, base = {ts: new Date().toISOString(), pref, clinic, called: d(ymd.called.get()), note, h};
+      const rows = [];
+      if (mc) rows.push({...base, kind: "去勢", got: d(ymd.maleDate.get()), n: mc});
+      if (fc) rows.push({...base, kind: "避妊", got: d(ymd.femaleDate.get()), n: fc});
+      window.dispatchEvent(new CustomEvent("kyosei:sent", {detail: {rows}}));
+      alertBox("送信しました。ありがとうございます！ 一覧に「反映待ち」で出しています（全員に見えるまで数分かかります）。");
     } catch (e) {
       err("送信できませんでした。通信を確かめて、もう一度押してください");
     } finally { q("#regSend").disabled = false; }
+  });
+
+  // 取り消し: 同じ県・病院で匹数0の行に「d:<鍵>」を入れて送る（サイトは鍵のハッシュが一致した登録を外す）
+  window.addEventListener("kyosei:undo", async e => {
+    const m = e.detail;
+    if (!E.admin || !window.confirm(`${m.clinic} への登録を取り消しますか？`)) return;
+    const body = new URLSearchParams(), put = (k, v) => { if (E[k]) body.append(E[k], v); }, t = new Date();
+    put("pref", m.pref); put("clinic", m.clinic); put("maleCount", "0"); put("femaleCount", "0"); put("admin", "d:" + m.key);
+    if (E.called) { body.append(E.called + "_year", t.getFullYear()); body.append(E.called + "_month", t.getMonth() + 1); body.append(E.called + "_day", t.getDate()); }
+    try {
+      await fetch(cfg.formUrl.replace(/\/viewform.*$/, "/formResponse"), {method: "POST", mode: "no-cors", body});
+      window.dispatchEvent(new CustomEvent("kyosei:sent", {detail: {del: m.h}}));
+      alertBox("取り消しました。全員の表示から消えるまで数分かかります。");
+    } catch (err) { alertBox("取り消しを送れませんでした。通信を確かめて、もう一度押してください"); }
   });
 
   function alertBox(msg){
