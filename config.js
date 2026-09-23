@@ -21,8 +21,8 @@ window.SITE_CONFIG = {
 
   // 「載っていない病院を知らせる」フォーム（tools/create_clinic_form.gs で作る）。空ならボタンを隠す。
   // 回答はサイトに自動では載らない。運営者が確かめて data/clinics.json へ足す。
-  clinicFormUrl: "",
-  clinicPrefEntry: "", // 「都道府県」設問の entry ID。入れると今の県が選ばれた状態で開く
+  clinicFormUrl: "https://docs.google.com/forms/d/e/1FAIpQLSd8ilg3stZxDuSCe0CO3Ep8k0t3rGc5cu_oaxndtWHjIprFJg/viewform",
+  clinicPrefEntry: "entry.910954798", // 「都道府県」設問の entry ID。入れると今の県が選ばれた状態で開く
 
   // サイト運営への応援ページ（OFUSE / Ko-fi など）。空なら出さない
   supportUrl: "",
