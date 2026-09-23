@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>猫の去勢・避妊 最短予約日</title>
 <meta name="description" content="全国の動物病院で猫の去勢・避妊手術が最短いつ取れたか、みんなで持ち寄る掲示板。野良猫の保護・さくらねこ活動を応援します。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="猫の去勢・避妊 最短予約日">
+<meta property="og:description" content="動物病院で猫の手術が最短いつ取れたか、予約した人が持ち寄る掲示板。野良猫の保護・さくらねこ活動を応援します。">
+<meta property="og:url" content="https://sakuraneko-kyosei.github.io/">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary">
+<link rel="canonical" href="https://sakuraneko-kyosei.github.io/">
 <style>
   :root{--bg:#fffdf8;--fg:#2b2b2b;--muted:#6b6b6b;--line:#e6dfd2;--accent:#d96c8a;--accent2:#5b8c5a;--warn:#b35c00;--card:#fff}
   @media (prefers-color-scheme:dark){:root{--bg:#1c1b19;--fg:#ececec;--muted:#a7a7a7;--line:#3a3833;--card:#26241f}}
@@ -64,6 +71,12 @@
   <label>地域：<select id="city"><option value="">すべて</option></select></label>
   <a id="formBtn" class="btn primary hidden" href="#" target="_blank" rel="noopener">最短日を登録する</a>
   <span id="status" class="meta"></span>
+</div>
+<div class="toolbar">
+  <span id="remind" class="meta hidden">予約を取ったら、登録を忘れないように → <a id="remindLink" class="btn small" href="#" target="_blank" rel="noopener">3日後にカレンダーで知らせる</a></span>
+  <span class="meta">このページを広める：</span>
+  <a id="shareX" class="btn small" href="#" target="_blank" rel="noopener">X で共有</a>
+  <a id="shareLine" class="btn small" href="#" target="_blank" rel="noopener">LINE で送る</a>
 </div>
 
 <div id="list"></div>
@@ -151,6 +164,22 @@
     document.title = `${p} 猫の去勢・避妊 最短予約日`;
     const b = $("#formBtn");
     if (formOpen(p)) { b.href = cfg.formUrl; b.classList.remove("hidden"); } else b.classList.add("hidden");
+    // 導線: 予約した人が数日後に戻って登録できるよう、カレンダーへ予定を入れるリンク。
+    // 共有は、いま開いている県のページ（?pref=）を渡す。
+    const page = `https://sakuraneko-kyosei.github.io/?pref=${encodeURIComponent(p)}`;
+    const r = $("#remind");
+    if (formOpen(p)) {
+      const d = new Date(Date.now() + 3 * 86400000), ymd = x => `${x.getFullYear()}${String(x.getMonth()+1).padStart(2,"0")}${String(x.getDate()).padStart(2,"0")}`;
+      const g = new URL("https://calendar.google.com/calendar/render");
+      g.searchParams.set("action", "TEMPLATE");
+      g.searchParams.set("text", "猫の手術の最短予約日を登録する");
+      g.searchParams.set("dates", `${ymd(d)}/${ymd(new Date(d.getTime() + 86400000))}`);
+      g.searchParams.set("details", `取れた手術日を登録すると、次に困る誰かの助けになります。\n${page}`);
+      $("#remindLink").href = g.toString(); r.classList.remove("hidden");
+    } else r.classList.add("hidden");
+    const msg = `${p}の動物病院で、猫の去勢・避妊手術が最短いつ取れたかを持ち寄るサイトです #さくらねこ #保護猫 #猫の去勢`;
+    $("#shareX").href = `https://x.com/intent/post?text=${encodeURIComponent(msg)}&url=${encodeURIComponent(page)}`;
+    $("#shareLine").href = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(page)}`;
 
     const mine = clinics.filter(x => x.pref === p);
     if (!mine.length) {
