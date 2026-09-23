@@ -48,6 +48,8 @@
   a.btn.primary,button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
   a.btn.small{padding:4px 8px;font-size:.85rem}
   .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:10px 0}
+  /* 画面外のカードは描画を後回し（東京都は1000件超で、全部描くと表示まで1秒以上かかった） */
+  #list .card{content-visibility:auto;contain-intrinsic-size:auto 150px}
   .card h3{margin:0 0 4px;font-size:1.1rem}
   .meta{color:var(--muted);font-size:.9rem}
   .meta a{color:inherit}
@@ -211,8 +213,11 @@
   // 登録（Sheets 公開 CSV）。列は見出しの名前で探す。
   // 今のフォームは1行に去勢と避妊の匹数・最短日を持つので、1行から最大2件を作る。
   // 旧形式（手術の種類＋最短で取れた手術日、県ごとの「病院名（◯◯県）」列）の行もそのまま読む
+  // ⚠️ Google の CSV は応答が数秒かかることがあるので待たない。一覧を先に出し、届いたら描き直す（遅延読み込み）
   let reports = [];
+  const reportsReady = (async () => {
   if (cfg.sheetCsvUrl) {
+    $("#status").textContent = "登録を読み込み中…";
     try {
       const txt = await fetch(cfg.sheetCsvUrl, {cache:"no-store"}).then(r => r.text());
       const rows = parseCsv(txt), head = (rows[0] || []).map(h => h.trim());
@@ -238,6 +243,7 @@
   } else {
     $("#status").textContent = "登録はまだありません";
   }
+  })();
 
   // 都道府県セレクタ。病院データのある県には件数を付ける。
   // 選んだ県は URL（?pref=青森県）に残すので、県ごとのページとして共有できる。
@@ -274,6 +280,7 @@
   // 前回の地域は、同じ県を開いた時だけ戻す（その県に無い地域は無視）
   if (saved.city && saved.pref === $("#pref").value && [...$("#city").options].some(o => o.value === saved.city)) $("#city").value = saved.city;
   render();
+  reportsReady.then(render);
 
   // 登録を受け付けているか（1ページのフォームの entry ID が config.js に入っていれば全県で受ける）
   // ⚠️ render() がこの宣言より先に走るので、const で持たず関数の中で読む（宣言前参照で落ちた）
@@ -358,7 +365,13 @@
         for (const name of names.values()) html.push(card({pref: p, name, unlisted: true}));
       }
     }
-    $("#list").innerHTML = html.join("");
+    // 最初の60項目をすぐ出し、残りは次の描画の後に足す（東京都は1000件超で、一度に入れると表示が遅い）
+    // ⚠️ render は宣言より前に呼ばれるので、番号は let でなく関数の属性に持つ（県や地域を切り替えた時、前の描画の続きを足さないため）
+    const token = render.token = (render.token || 0) + 1, FIRST = 60;
+    $("#list").innerHTML = html.slice(0, FIRST).join("");
+    if (html.length > FIRST) setTimeout(() => {
+      if (token === render.token) $("#list").insertAdjacentHTML("beforeend", html.slice(FIRST).join(""));
+    }, 0);
   }
 
   function card(c){
