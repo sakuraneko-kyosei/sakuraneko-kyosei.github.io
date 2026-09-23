@@ -6,10 +6,10 @@
 <meta name="color-scheme" content="light">
 <meta name="google-site-verification" content="vXij_14aNkogEas4bIWph9y9Bd100v9Ini2iTCLuvcY" />
 <meta name="darkreader-lock"><!-- Dark Reader 拡張に暗くさせない（明るい配色を保つ） -->
-<title>猫の去勢・避妊 最短予約日</title>
+<title>猫の去勢・避妊 掲示板 最短予約日一覧</title>
 <meta name="description" content="全国の動物病院で猫の去勢・避妊手術が最短いつ取れたか、みんなで持ち寄る掲示板。野良猫の保護・さくらねこ活動を応援します。">
 <meta property="og:type" content="website">
-<meta property="og:title" content="猫の去勢・避妊 最短予約日">
+<meta property="og:title" content="猫の去勢・避妊 掲示板 最短予約日一覧">
 <meta property="og:description" content="動物病院で猫の手術が最短いつ取れたか、予約した人が持ち寄る掲示板。野良猫の保護・さくらねこ活動を応援します。">
 <meta property="og:url" content="https://sakuraneko-kyosei.github.io/">
 <meta property="og:locale" content="ja_JP">
@@ -359,7 +359,7 @@
   function render(){
     const p = $("#pref").value, sel = $("#city").value;
     $("#prefTitle").textContent = `（${p}）`;
-    document.title = `${p} 猫の去勢・避妊 最短予約日`;
+    document.title = `${p} 猫の去勢・避妊 掲示板 最短予約日一覧`;
     const b = $("#formBtn");
     if (formOpen(p)) { b.href = formLink(p); b.classList.remove("hidden"); } else b.classList.add("hidden");
     // 病院の追加依頼は全県で受ける（運営者が確かめてから clinics.json へ足す）。今の県を事前入力する。
@@ -382,7 +382,7 @@
       g.searchParams.set("details", `最短で手術できる日を登録すると、次に困る誰かの助けになります。\n${page}`);
       $("#remindLink").href = g.toString(); r.classList.remove("hidden");
     } else r.classList.add("hidden");
-    const msg = `${p}の動物病院で、猫の去勢・避妊手術が最短いつ取れたかを持ち寄るサイトです #さくらねこ #保護猫 #猫の去勢`;
+    const msg = `猫の去勢・避妊 掲示板（${p}の最短予約日一覧）。動物病院で猫の手術が最短いつできるかを持ち寄っています #さくらねこ #保護猫 #猫の去勢`;
     $("#shareX").href = `https://x.com/intent/post?text=${encodeURIComponent(msg)}&url=${encodeURIComponent(page)}`;
     $("#shareLine").href = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(page)}`;
 
