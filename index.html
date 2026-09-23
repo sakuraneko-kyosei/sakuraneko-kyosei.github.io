@@ -124,6 +124,7 @@
 <div class="toolbar">
   <label>都道府県：<select id="pref"></select></label>
   <label>地域：<select id="city"><option value="">すべて</option></select></label>
+  <label><input type="checkbox" id="onlyReported"> 登録がある病院だけ</label>
   <a id="formBtn" class="btn primary hidden" href="#" target="_blank" rel="noopener">最短日を登録する</a>
   <a id="clinicBtn" class="btn hidden" href="#" target="_blank" rel="noopener">載っていない病院を知らせる</a>
   <span id="status" class="meta"></span>
@@ -275,6 +276,7 @@
     fillCities(); save(); render();
   });
   $("#city").addEventListener("change", () => { save(); render(); });
+  $("#onlyReported").addEventListener("change", () => render());
   clinics = await loadPref($("#pref").value);
   fillCities();
   // 前回の地域は、同じ県を開いた時だけ戻す（その県に無い地域は無視）
@@ -346,10 +348,15 @@
       return;
     }
     const html = [];
+    // 「登録がある病院だけ」: その病院の名前で登録が1件でもあるものだけ残し、空になった地域は見出しごと出さない
+    const only = $("#onlyReported").checked;
+    const reported = only ? new Set(reports.filter(r => (r.pref || "青森県") === p).map(r => norm(r.clinic))) : null;
     for (const city of [...new Set(mine.map(x => x.city))]) {
       if (sel && city !== sel) continue;
+      const cs = mine.filter(x => x.city === city && (!only || reported.has(norm(x.formName || x.name))));
+      if (!cs.length) continue;
       html.push(`<h2 class="city">${esc(city)}</h2>`);
-      for (const c of mine.filter(x => x.city === city)) html.push(card(c));
+      for (const c of cs) html.push(card(c));
     }
     // 一覧に無い病院として登録されたもの（名前が一覧のどれとも一致しない）を、地域を絞っていない時だけ別枠で出す
     if (!sel) {
@@ -365,6 +372,7 @@
         for (const name of names.values()) html.push(card({pref: p, name, unlisted: true}));
       }
     }
+    if (!html.length) html.push(`<div class="card empty"><p class="meta">${only ? "この条件で登録のある病院はまだありません。" : "病院がありません。"}</p></div>`);
     // 最初の60項目をすぐ出し、残りは次の描画の後に足す（東京都は1000件超で、一度に入れると表示が遅い）
     // ⚠️ render は宣言より前に呼ばれるので、番号は let でなく関数の属性に持つ（県や地域を切り替えた時、前の描画の続きを足さないため）
     const token = render.token = (render.token || 0) + 1, FIRST = 60;
