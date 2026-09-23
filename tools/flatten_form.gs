@@ -69,3 +69,10 @@ function flatten() {
   Logger.log('formEntries: {pref: "%s", clinic: "%s", called: "%s", maleCount: "%s", maleDate: "%s", femaleCount: "%s", femaleDate: "%s"},',
     ids[0], ids[1], ids[2], ids[3], ids[4], ids[5], ids[6]);
 }
+
+// 病院名の説明（利用者の指摘で平易に）
+function helpText() {
+  const f = findForm_();
+  byTitle_(f, FormApp.ItemType.TEXT, "病院名").setHelpText("手術を予約した動物病院の名前を入れてください（例：さくら動物病院）。サイトの病院一覧の「この病院の最短日を登録」から開くと、最初から入っています。");
+  Logger.log("ok");
+}
