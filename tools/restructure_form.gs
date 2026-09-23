@@ -102,11 +102,16 @@ function syncClinics() {
     }
     q.setChoiceValues(names.concat([OTHER]));
     total += names.length;
-    const url = form.createResponse().withItemResponse(q.createResponse(names[0] || OTHER)).toPrefilledUrl();
+    const url = form.createResponse().withItemResponse(q.createResponse(OTHER)) /* 病院名は Forms が空白を詰めて弾くことがあるので、必ず在る OTHER で entry ID だけ取る */.toPrefilledUrl();
     entries[p] = (url.match(/[?&](entry\.\d+)=/) || [])[1] || "";
   }
   const pu = form.createResponse().withItemResponse(prefQ.createResponse(PREFS[0])).toPrefilledUrl();
   Logger.log("病院 %s 件を反映", total);
   Logger.log('formPrefEntry: "%s",', (pu.match(/[?&](entry\.\d+)=/) || [])[1] || "");
   Logger.log("formClinicEntries: %s,", JSON.stringify(entries));
+}
+
+// 設問の型を確かめる（日付の設問が DATE か TEXT か）
+function inspect() {
+  findForm_().getItems().forEach(i => { if (i.getType() !== FormApp.ItemType.LIST) Logger.log("%s | %s | %s", i.getIndex(), i.getType(), i.getTitle()); });
 }
