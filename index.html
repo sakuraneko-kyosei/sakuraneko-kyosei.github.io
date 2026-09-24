@@ -350,8 +350,10 @@
   function fillCities(){
     const p = $("#pref").value;
     const sel = $("#city"); sel.length = 1; sel.value = ""; // 「すべて」だけ残す
-    for (const c of [...new Set(clinics.filter(x => x.pref === p).map(x => x.city))]) {
-      const o = document.createElement("option"); o.value = o.textContent = c; sel.appendChild(o);
+    const n = new Map();
+    for (const x of clinics) if (x.pref === p) n.set(x.city, (n.get(x.city) || 0) + 1);
+    for (const [c, k] of n) {
+      const o = document.createElement("option"); o.value = c; o.textContent = `${c}（${k}件）`; sel.appendChild(o);
     }
     sel.disabled = sel.length === 1;
   }
