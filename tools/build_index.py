@@ -14,7 +14,7 @@ from scrape_anicom import city_of
 
 ROOT = Path(__file__).resolve().parent.parent
 DIR = ROOT / "data" / "clinics"
-SOURCE = ("アニコムどうぶつ病院検索（https://www.anicom-ah.com/）の公開情報から、猫を診る病院を転記。"
+SOURCE = ("アニコムどうぶつ病院検索（https://www.anicom-ah.com/）と Caloo ペット（https://pet.caloo.jp/）の公開情報から、猫を診る病院を転記。"
           "診療時間は要約であり変わることがあるので、必ず病院へ確認してください。")
 
 def main():
