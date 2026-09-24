@@ -127,7 +127,7 @@
 <div class="toolbar">
   <label>都道府県：<select id="pref"></select></label>
   <label>地域：<select id="city"><option value="">すべて</option></select></label>
-  <label><input type="checkbox" id="onlyReported"> 登録がある病院だけ</label>
+  <label><input type="checkbox" id="onlyReported"> 登録がある病院だけ<span id="onlyCount"></span></label>
   <a id="formBtn" class="btn primary hidden" href="#" target="_blank" rel="noopener">最短日を登録する</a>
   <a id="clinicBtn" class="btn hidden" href="#" target="_blank" rel="noopener">載っていない病院を知らせる</a>
   <span id="status" class="meta"></span>
@@ -399,7 +399,16 @@
     const html = [];
     // 「登録がある病院だけ」: その病院の名前で登録が1件でもあるものだけ残し、空になった地域は見出しごと出さない
     const only = $("#onlyReported").checked;
-    const reported = only ? new Set(reports.filter(r => (r.pref || "青森県") === p).map(r => norm(r.clinic))) : null;
+    const reported = new Set(reports.filter(r => (r.pref || "青森県") === p).map(r => norm(r.clinic)));
+    // 地域の件数は、チェック中は登録がある病院の数に切り替える
+    const nAll = new Map(), nRep = new Map();
+    for (const x of mine) {
+      nAll.set(x.city, (nAll.get(x.city) || 0) + 1);
+      if (reported.has(norm(x.formName || x.name))) nRep.set(x.city, (nRep.get(x.city) || 0) + 1);
+    }
+    for (const o of $("#city").options) if (o.value) o.textContent = `${o.value}（${(only ? nRep : nAll).get(o.value) || 0}件）`;
+    const rc = sel ? nRep.get(sel) || 0 : [...nRep.values()].reduce((a, b) => a + b, 0);
+    $("#onlyCount").textContent = card.loaded ? `（${rc}件）` : "";
     for (const city of [...new Set(mine.map(x => x.city))]) {
       if (sel && city !== sel) continue;
       const cs = mine.filter(x => x.city === city && (!only || reported.has(norm(x.formName || x.name))));
