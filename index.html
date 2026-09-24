@@ -54,6 +54,7 @@
   #list .card{content-visibility:auto;contain-intrinsic-size:auto 150px}
   .card h3{margin:0 0 4px;font-size:1.1rem}
   .meta{color:var(--muted);font-size:.9rem}
+  .meta.asof{font-size:.78rem}
   .meta a{color:inherit}
   .latest{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:.95rem}
   .latest .days{font-weight:700;color:var(--accent2)}
@@ -440,6 +441,26 @@
     }, 0);
   }
 
+  // 病院の情報がいつ時点か。訂正を反映した病院は updated（YYYY-MM-DD）を持つ。
+  // 出典と取得日は、データに無ければ id の頭から決める（一括で取り込んだ日）
+  // ⚠️ render() がこの宣言より先に走るので、表は関数の中に置く（formOpen と同じ理由）
+  function asOf(c){
+    const SRC = {anicom: ["アニコム", "2026-09-23"], caloo: ["Caloo ペット", "2026-09-24"], "": ["運営者調べ", "2026-09-23"]};
+    const ymd = s => { const [y, m, d] = s.split("-").map(Number); return `${y}/${m}/${d}`; };
+    if (c.updated) return `情報: ${ymd(c.updated)} 更新`;
+    const [label, day] = SRC[(c.id.match(/^(anicom|caloo)-/) || [])[1] || ""];
+    return `情報: ${label} ${ymd(c.asOf || day)} 時点`;
+  }
+  // 掲載中の病院の訂正: 今の情報を書き込んだ状態で病院フォームを開き、変わった所だけ直して送ってもらう
+  function fixLink(c){
+    const E = cfg.clinicEntries;
+    if (!cfg.clinicFormUrl || !E) return "";
+    const u = new URL(cfg.clinicFormUrl), set = (k, v) => { if (E[k] && v) u.searchParams.set(E[k], v); };
+    if (cfg.clinicPrefEntry) u.searchParams.set(cfg.clinicPrefEntry, c.pref);
+    set("kind", E.kindFix); set("name", c.name); set("city", c.city); set("address", c.address); set("tel", c.tel); set("hours", c.hours);
+    return ` ／ <a href="${esc(u.toString())}" target="_blank" rel="noopener">情報の訂正を知らせる</a>`;
+  }
+
   function card(c){
     // 県＋フォームの選択肢名で照合（別の県の同名病院と混ざらない）。
     // 県の列が無かった頃の登録は青森県だけだったので、県が空なら青森県とみなす
@@ -475,7 +496,8 @@
     return `<div class="card${c.unlisted ? " unlisted" : ""}">
       <h3>${esc(c.name)}</h3>
       ${c.unlisted ? `<div class="meta">一覧に無い病院（住所・電話は未確認）</div>`
-        : `<div class="meta">${esc(c.address)} ／ <a href="tel:${esc(c.tel.replace(/-/g,""))}">${esc(c.tel)}</a>${c.hours ? " ／ " + esc(c.hours) : ""}</div>`}
+        : `<div class="meta">${esc(c.address)}${c.tel ? ` ／ <a href="tel:${esc(c.tel.replace(/-/g,""))}">${esc(c.tel)}</a>` : ""}${c.hours ? " ／ " + esc(c.hours) : ""}</div>
+      <div class="meta asof">${esc(asOf(c))}${fixLink(c)}</div>`}
       <div class="latest">${latest}${link}</div>
     </div>`;
   }
