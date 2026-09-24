@@ -18,6 +18,9 @@ window.SITE_CONFIG = {
   // 回答はサイトに自動では載らない。運営者が確かめて data/clinics.json へ足す。
   clinicFormUrl: "https://docs.google.com/forms/d/e/1FAIpQLSd8ilg3stZxDuSCe0CO3Ep8k0t3rGc5cu_oaxndtWHjIprFJg/viewform",
   clinicPrefEntry: "entry.910954798", // 「都道府県」設問の entry ID。入れると今の県が選ばれた状態で開く
+  // 各病院の「情報の訂正を知らせる」で、今の情報を事前入力する設問（tools/clinic_fix.gs）。空なら訂正リンクを出さない
+  clinicEntries: {kind: "entry.367559093", kindFix: "掲載中の病院の情報の訂正（時間・電話・住所など）",
+    name: "entry.542047816", city: "entry.1261561586", address: "entry.129742378", tel: "entry.329742555", hours: "entry.630039275"},
 
   // アクセス解析: Google アナリティクス 4 の測定 ID（例 "G-XXXXXXXXXX"）。空なら計測しない
   gaId: "G-SGDWB7BR9N",
