@@ -136,7 +136,9 @@
 <div class="toolbar">
   <label>都道府県：<select id="pref"></select></label>
   <label>地域：<select id="city"><option value="">すべて</option></select></label>
+  <button type="button" id="nearBtn" title="現在地はこの端末の中で並べ替えに使うだけで、どこにも送りません">近い順</button><span id="nearMsg" class="meta"></span>
   <label>検索：<input type="search" id="q" placeholder="病院名・住所・電話番号"></label>
+  <label><input type="checkbox" id="allJp"> 全国から探す</label>
   <label><input type="checkbox" id="onlyReported"> 登録がある病院だけ<span id="onlyCount"></span></label>
   <a id="formBtn" class="btn primary hidden" href="#" target="_blank" rel="noopener">最短日を登録する</a>
   <a id="clinicBtn" class="btn hidden" href="#" target="_blank" rel="noopener">載っていない病院を知らせる</a>
@@ -353,6 +355,27 @@
     });
   }
   $("#q").addEventListener("input", () => { render.page = 0; render(); });
+  // 全国から探す: 検索語がある時だけ全県のデータを読み、県をまたいで探す（読めなかった県があれば、入れ直すと取り直す）
+  $("#allJp").addEventListener("change", () => { if (render.allFailed?.length) render.all = null; render.page = 0; render(); });
+  // 近い順: 現在地から各地域の代表地点までの距離で地域を並べる。もう一度押すと件数順に戻す。
+  // 現在地はこの端末の中で並べ替えに使うだけで、どこにも送らない（URL にも保存にも残さない）
+  $("#nearBtn").addEventListener("click", async () => {
+    const b = $("#nearBtn"), msg = $("#nearMsg");
+    if (render.nearBusy) return;  // 現在地を確かめている間の連打は無視する
+    if (render.here) { render.here = null; b.textContent = "近い順"; msg.textContent = ""; render.page = 0; fillCities(); render(); return; }
+    if (!navigator.geolocation) { msg.textContent = "この端末では現在地を使えません"; return; }
+    msg.textContent = "現在地を確かめています…"; render.nearBusy = true;
+    try {
+      let pos;
+      try { pos = await new Promise((ok, ng) => navigator.geolocation.getCurrentPosition(ok, ng, {timeout: 15000, maximumAge: 600000})); }
+      catch (e) { msg.textContent = "現在地を使えませんでした（位置情報の許可を確かめてください）"; return; }
+      try { render.geo ??= await fetch("data/city_geo.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }); }
+      catch (e) { msg.textContent = "地域の位置を読み込めませんでした（少し待ってからもう一度押してください）"; return; }
+      render.here = [pos.coords.latitude, pos.coords.longitude];
+      b.textContent = "近い順 ✓（戻す）"; msg.textContent = "";
+      render.page = 0; fillCities(); render();
+    } finally { render.nearBusy = false; }
+  });
   $("#onlyReported").checked = false;
   clinics = await loadPref($("#pref").value);
   fillCities();
@@ -361,6 +384,7 @@
   if (fromUrl === $("#pref").value) { if (hasCity(qs.get("city"))) $("#city").value = qs.get("city"); }
   else if (saved.city && saved.pref === $("#pref").value && hasCity(saved.city)) $("#city").value = saved.city;
   if (fromUrl === $("#pref").value && qs.get("q")) $("#q").value = qs.get("q");
+  $("#allJp").checked = qs.get("all") === "1";
   if (fromUrl === $("#pref").value && Math.floor(+qs.get("page")) > 1) render.page = Math.floor(+qs.get("page")) - 1;
   render();
   reportsReady.then(() => { card.loaded = true; render(); });
@@ -383,22 +407,40 @@
   // 地域セレクタ（clinics.json の並び順を保つ）
   function fillCities(){
     const p = $("#pref").value;
-    const sel = $("#city"); sel.length = 1; sel.value = ""; // 「すべて」だけ残す
+    const sel = $("#city"), keep = sel.value; sel.length = 1; sel.value = ""; // 「すべて」だけ残す
     const n = new Map();
     for (const x of clinics) if (x.pref === p) n.set(x.city, (n.get(x.city) || 0) + 1);
-    for (const [c, k] of n) {
-      const o = document.createElement("option"); o.value = c; o.textContent = `${c}（${k}件）`; sel.appendChild(o);
+    for (const c of cityOrder(p, [...n.keys()])) {
+      const o = document.createElement("option"); o.value = c; o.textContent = `${c}（${n.get(c)}件）`; sel.appendChild(o);
     }
+    if (keep && n.has(keep)) sel.value = keep;  // 並べ替えだけの時は選んでいた地域を保つ
     sel.disabled = sel.length === 1;
+  }
+
+  // 「近い順」: 現在地から各地域の代表地点（市区町村の町丁目の緯度経度の平均、data/city_geo.json）までの距離で並べる。
+  // 地点の無い地域（住所未掲載など）は後ろ。安定ソートなので、同じ距離どうしは元の件数順のまま
+  function cityOrder(p, cities){
+    const here = render.here, g = render.geo && render.geo[p];
+    if (!here || !g) return cities;
+    const k = Math.cos(here[0] * Math.PI / 180);
+    const d = c => { const x = g[c]; return x ? (x[0] - here[0]) ** 2 + ((x[1] - here[1]) * k) ** 2 : Infinity; };
+    return [...cities].sort((a, b) => d(a) - d(b));
   }
 
   // ホイール 1 目盛りで move(向き) を 1 回呼ぶ。move(向き, true) は「動けるか」だけを返す。
   // 動ける時だけページのスクロールを止める（端に着いたら、そのままページがスクロールする）。
   // Ctrl+ホイール（拡大縮小）と無効な欄は邪魔しない。トラックパッドの細かい量は 100 たまってから動かす
-  function wheelStep(target, move){
+  // スクロール中に欄の上を通り過ぎただけでは切り替えない: マウスを重ねて 0.3 秒たってから効く。
+  // key が同じ欄（作り直されるページ指定の入力）は、重ねた時刻を引き継ぐ
+  function wheelStep(target, move, key = target){
     let acc = 0;
+    const since = wheelStep.since ??= new Map();
+    target.title = "マウスを重ねて少し待つと、ホイールで切り替えられます";
+    target.addEventListener("mouseenter", () => { if (!since.has(key)) since.set(key, Date.now()); });  // 作り直した欄に入り直しても待ち直さない
+    target.addEventListener("mouseleave", () => since.delete(key));
     target.addEventListener("wheel", e => {
       if (e.ctrlKey || target.disabled || !e.deltaY) return;
+      if (!since.has(key) || Date.now() - since.get(key) < 300) return;
       const dir = Math.sign(e.deltaY);
       if (Math.sign(acc) !== dir) acc = 0;  // 向きが変わったらため直す
       if (!move(dir, true)) { acc = 0; return; }
@@ -457,21 +499,41 @@
         sp.set("pref", p);
         sel ? sp.set("city", sel) : sp.delete("city");
         $("#q").value.trim() ? sp.set("q", $("#q").value.trim()) : sp.delete("q");
+        national ? sp.set("all", "1") : sp.delete("all");
         pg ? sp.set("page", pg + 1) : sp.delete("page");
         if (u.href !== location.href) history.replaceState(null, "", u);
       } catch (e) {}
     };
     const mine = clinics.filter(x => x.pref === p);
+    // 検索: 病院名・住所・地域（読みも）・電話番号のどれかに入力の語がすべて含まれるもの（空白区切り、電話はハイフンを無視）
+    // カタカナはひらがなに寄せる（「ハチノヘ」「はちのへ」どちらでも地域の読みに当たる）
+    const fold = t => String(t || "").normalize("NFKC").toLowerCase().replace(/[ァ-ヶ]/g, k => String.fromCharCode(k.charCodeAt(0) - 0x60)).replace(/[-‐－ー\s]/g, "");
+    const words = $("#q").value.normalize("NFKC").toLowerCase().split(/\s+/).filter(Boolean).map(fold);
+    const hit = c => { const t = fold([c.name, c.formName, c.address, c.city, c.cityKana, c.tel].join(" ")); return words.every(w => t.includes(w)); };
+    // 全国から探す: 検索語がある時だけ。初めての時は全県を読み終えてから描き直す
+    const national = $("#allJp").checked && words.length > 0;
+    $("#city").disabled = national || $("#city").options.length <= 1;
     $("#pager").innerHTML = ""; $("#pagerTop").innerHTML = "";
-    if (!mine.length) syncUrl(0);
-    if (!mine.length && loadPref.failed.has(p)) {
+    if (national && !render.all) {
+      if (!render.allLoading) {
+        const ps = Object.keys(idx.counts).filter(k => idx.counts[k]);
+        render.allLoading = Promise.all(ps.map(loadPref)).then(a => {
+          render.all = a.flat(); render.allFailed = ps.filter((k, i) => !a[i].length); render.allLoading = null; render();
+        });
+      }
+      $("#list").innerHTML = `<div class="card empty"><p class="meta">全国の病院を読み込んでいます…</p></div>`;
+      syncUrl(0);
+      return;
+    }
+    if (!national && !mine.length) syncUrl(0);
+    if (!national && !mine.length && loadPref.failed.has(p)) {
       $("#list").innerHTML = `<div class="card empty">
         <h3>${esc(p)}の病院を読み込めませんでした</h3>
         <p class="meta">通信が不安定な可能性があります。少し待ってから、県を選び直すか、ページを再読み込みしてください。</p>
       </div>`;
       return;
     }
-    if (!mine.length) {
+    if (!national && !mine.length) {
       $("#list").innerHTML = `<div class="card empty">
         <h3>${esc(p)}の病院はまだ登録されていません（準備中）</h3>
         <p class="meta">このサイトは県ごとに順番に広げています。${esc(p)}で使いたい方、地域の病院やさくらねこ活動をしている団体をご存じの方は、ぜひ教えてください。</p>
@@ -481,31 +543,34 @@
     const html = [];
     // 「登録がある病院だけ」: その病院の名前で登録が1件でもあるものだけ残し、空になった地域は見出しごと出さない
     const only = $("#onlyReported").checked;
-    const reported = new Set(reports.filter(r => (r.pref || "青森県") === p).map(r => norm(r.clinic)));
+    // 登録の有無は「県|病院名」で見る（全国から探す時は別の県の同名の病院を取り違えない）
+    const reported = new Set(reports.map(r => (r.pref || "青森県") + "|" + norm(r.clinic)));
+    const isRep = c => reported.has(c.pref + "|" + norm(c.formName || c.name));
     // 地域の件数は、チェック中は登録がある病院の数に切り替える
-    // カタカナはひらがなに寄せる（「ハチノヘ」「はちのへ」どちらでも地域の読みに当たる）
-    const fold = t => String(t || "").normalize("NFKC").toLowerCase().replace(/[ァ-ヶ]/g, k => String.fromCharCode(k.charCodeAt(0) - 0x60)).replace(/[-‐－ー\s]/g, "");
-    const words = $("#q").value.normalize("NFKC").toLowerCase().split(/\s+/).filter(Boolean).map(fold);
-    const hit = c => { const t = fold([c.name, c.formName, c.address, c.city, c.cityKana, c.tel].join(" ")); return words.every(w => t.includes(w)); };
     // 地域と「登録がある病院だけ」の件数も、検索に合う病院だけで数える（ページ送りの「◯件中」と揃える）
     const nAll = new Map(), nRep = new Map();
     for (const x of mine) {
       if (!hit(x)) continue;
       nAll.set(x.city, (nAll.get(x.city) || 0) + 1);
-      if (reported.has(norm(x.formName || x.name))) nRep.set(x.city, (nRep.get(x.city) || 0) + 1);
+      if (isRep(x)) nRep.set(x.city, (nRep.get(x.city) || 0) + 1);
     }
     for (const o of $("#city").options) if (o.value) o.textContent = `${o.value}（${(only ? nRep : nAll).get(o.value) || 0}件）`;
-    const rc = sel ? nRep.get(sel) || 0 : [...nRep.values()].reduce((a, b) => a + b, 0);
+    // 全国から探す時は、全国の検索結果のうち登録のある病院の数（今の県の数のままだと一覧と食い違う）
+    const rc = national ? render.all.filter(c => hit(c) && isRep(c)).length
+      : sel ? nRep.get(sel) || 0 : [...nRep.values()].reduce((a, b) => a + b, 0);
     $("#onlyCount").textContent = card.loaded ? `（${rc}件）` : "";
-    // 検索: 病院名・住所・地域・電話番号のどれかに入力の語がすべて含まれるもの（空白区切り、電話はハイフンを無視）
     const rows = [];
-    for (const city of [...new Set(mine.map(x => x.city))]) {
-      if (sel && city !== sel) continue;
-      for (const c of mine) if (c.city === city && (!only || reported.has(norm(c.formName || c.name))) && hit(c)) rows.push(c);
+    if (national) {
+      for (const c of render.all) if ((!only || isRep(c)) && hit(c)) rows.push(c);  // 県の順、県の中は地域ごと
+    } else {
+      for (const city of cityOrder(p, [...new Set(mine.map(x => x.city))])) {
+        if (sel && city !== sel) continue;
+        for (const c of mine) if (c.city === city && (!only || isRep(c)) && hit(c)) rows.push(c);
+      }
     }
     // 一覧に無い病院として登録されたもの（名前が一覧のどれとも一致しない）を、地域を絞っていない時だけ別枠で出す
     const extra = [];
-    if (!sel) {
+    if (!sel && !national) {
       const known = new Set(mine.map(c => norm(c.formName || c.name)));
       const names = new Map();
       for (const r of reports) {
@@ -520,15 +585,17 @@
     const pg = render.page = Math.max(0, Math.min(Math.floor(render.page) || 0, pages - 1));
     syncUrl(pg);
     let last = "";
+    if (national && render.allFailed.length) html.push(`<p class="meta">読み込めなかった県があります（${esc(render.allFailed.join("・"))}）。「全国から探す」を入れ直すと取り直します。</p>`);
     for (const c of rows.slice(pg * PER, pg * PER + PER)) {
-      if (c.city !== last) { html.push(`<h2 class="city">${esc(c.city)}${c.cityKana ? ` <span class="kana">${esc(c.cityKana)}</span>` : ""}</h2>`); last = c.city; }
+      const head = national ? c.pref + " " + c.city : c.city;  // 全国から探す時は見出しに県名を付ける
+      if (head !== last) { html.push(`<h2 class="city">${esc(head)}${c.cityKana ? ` <span class="kana">${esc(c.cityKana)}</span>` : ""}</h2>`); last = head; }
       html.push(card(c));
     }
     if (extra.length && pg === pages - 1) {
       html.push(`<h2 class="city">一覧に無い病院の登録</h2>
         <p class="meta">利用者が一覧に無い病院として登録したものです。病院名は入力されたままで、運営者はまだ確かめていません。</p>`, ...extra);
     }
-    if (!html.length) html.push(`<div class="card empty"><p class="meta">${words.length ? "検索に合う病院がありません。" : only ? "この条件で登録のある病院はまだありません。" : "病院がありません。"}</p></div>`);
+    if (!rows.length && !extra.length) html.push(`<div class="card empty"><p class="meta">${national ? "全国で検索に合う病院がありません。" : words.length ? "検索に合う病院がありません。" : only ? "この条件で登録のある病院はまだありません。" : "病院がありません。"}</p></div>`);
     $("#list").innerHTML = html.join("");
     if (pages > 1) {
       // ページ送りは一覧の上と下の両方に出す。次へ・前へのほか、ページ番号を打って移動もできる
@@ -554,7 +621,7 @@
           if (n < 1 || n > pages) return false;
           if (!dry) { inp.value = n; clearTimeout(render.wheelT); render.wheelT = setTimeout(jump, 400); }
           return true;
-        });
+        }, "page");
       }
     }
   }

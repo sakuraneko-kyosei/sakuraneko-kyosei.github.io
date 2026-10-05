@@ -17,11 +17,13 @@ ROOT = Path(__file__).resolve().parent.parent
 DIR = ROOT / "data" / "clinics"
 # 市区町村の読み（Geolonia「japanese-addresses」latest.csv の市区町村名カナ、CC BY 4.0）
 KANA = json.loads((ROOT / "tools" / "city_kana.json").read_text(encoding="utf-8"))
+# 市区町村の代表地点（同じ csv の町丁目の緯度経度の平均）。サイトの「近い順」が使う
+GEO = json.loads((ROOT / "tools" / "city_geo.json").read_text(encoding="utf-8"))
 SOURCE = ("アニコムどうぶつ病院検索（https://www.anicom-ah.com/）と Caloo ペット（https://pet.caloo.jp/）の公開情報から、猫を診る病院を転記。"
           "診療時間は要約であり変わることがあるので、必ず病院へ確認してください。")
 
 def main():
-    counts, latest = {}, ""
+    counts, latest, geo = {}, "", {}
     for f in sorted(DIR.glob("*.json")):
         d = json.loads(f.read_text(encoding="utf-8"))
         cl = d["clinics"]
@@ -45,10 +47,13 @@ def main():
         assert len({c["formName"] for c in cl}) == len(cl), f.name + " に formName の重複"
         f.write_text(json.dumps(d, ensure_ascii=False, indent=0), encoding="utf-8")
         counts[d["pref"]] = len(cl)
+        g = GEO.get(d["pref"], {})
+        geo[d["pref"]] = {c: g[c] for c in dict.fromkeys(x["city"] for x in cl) if c in g}
         # 病院情報の最終更新日（訂正日 updated か取得日 asOf。どちらも無い物は一括取り込みの日）
         latest = max([latest] + [max(c.get("updated") or "", c.get("asOf") or "") or "2026-09-23" for c in cl])
     (ROOT / "data" / "prefs.json").write_text(
         json.dumps({"source": SOURCE, "updated": latest, "counts": counts}, ensure_ascii=False, indent=1), encoding="utf-8")
+    (ROOT / "data" / "city_geo.json").write_text(json.dumps(geo, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     # 検索エンジン向けの一覧。更新日はデータの最終更新日に合わせる（掲載のある県だけ載せる）
     top = "https://sakuraneko-kyosei.github.io/"
     urls = [top] + [top + "?pref=" + quote(p) for p, n in counts.items() if n]

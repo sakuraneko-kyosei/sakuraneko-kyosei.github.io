@@ -115,7 +115,8 @@ checks["上の入力で2ページ目へ移動"] = nCard() === 20 && pagerText().
 checks["下の入力のEnterで範囲外は最終ページ（7件）に丸める"] = nCard() === 7 && pagerText().includes("4 / 4 ページ（67件中 61〜67件）") && el("#pager").children[2].disabled === true;
 // ページ指定のホイール: 最終ページで下へ回してもページのスクロールは止めない。上へ回すと番号が減り、少し待つと移動する
 { const ev = dy => ({deltaY: dy, deltaMode: 0, ctrlKey: false, stopped: false, preventDefault() { this.stopped = true; }});
-  const [, inp] = jumpOf("#pager"); const down = ev(100); inp.listeners.wheel(down);
+  const [, inp] = jumpOf("#pager"); inp.listeners.mouseenter(); await new Promise(r => setTimeout(r, 320));
+  const down = ev(100); inp.listeners.wheel(down);
   checks["ページ指定: 最終ページで下へはページのスクロールを止めない"] = down.stopped === false && inp.value == 4;
   const up = ev(-100); inp.listeners.wheel(up);
   checks["ページ指定: 上へ回すと番号が減る（すぐには移動しない）"] = up.stopped === true && inp.value == 3 && nCard() === 7;
@@ -172,6 +173,11 @@ checks["取り消すと一覧から消える"] = !el("#list").innerHTML.includes
 // ホイール: 地域の上で回すと一つずつ切り替わり、端で止まる。細かい量はためてから動かす
 const wheel = (id, dy) => el(id).listeners.wheel({deltaY: dy, deltaMode: 0, preventDefault() {}});
 el("#city").value = ""; el("#city").listeners.change();
+// マウスを重ねてすぐ（スクロールで通り過ぎただけ）は切り替えない。0.3 秒たってから効く
+el("#city").listeners.mouseenter(); wheel("#city", 100);
+checks["ホイール: 重ねてすぐは切り替えない"] = el("#city").value === "";
+checks["ホイール: 回せることを title で知らせる"] = /ホイール/.test(el("#city").title) && /ホイール/.test(el("#pref").title);
+el("#city").listeners.mouseleave(); el("#city").listeners.mouseenter(); await new Promise(r => setTimeout(r, 320));
 wheel("#city", 40);
 checks["ホイール: 少しだけでは動かない"] = el("#city").value === "";
 wheel("#city", 60);
@@ -184,6 +190,21 @@ checks["ホイール: 上へ回すと戻る"] = el("#city").value === "";
 { const e = {deltaY: 100, deltaMode: 0, ctrlKey: true, stopped: false, preventDefault() { this.stopped = true; }};
   el("#city").listeners.wheel(e);
   checks["ホイール: Ctrl+ホイール（拡大縮小）は邪魔しない"] = el("#city").value === "" && e.stopped === false; }
+// 全国から探す: 青森県を開いたまま、岩手県の病院を検索で引ける。見出しに県名が付く
+el("#city").value = ""; el("#allJp").checked = true; el("#q").value = "盛岡"; clearP(); el("#q").listeners.input();
+await new Promise(r => setTimeout(r, 800));
+{ const h = el("#list").innerHTML;
+  checks["全国から探す: 他の県の病院も出る（見出しに県名）"] = h.includes('<h2 class="city">岩手県 盛岡市') && !h.includes("八戸市");
+  checks["全国から探す: 地域は選べない・URL に all=1"] = el("#city").disabled === true && /[?&]all=1/.test(globalThis.lastUrl); }
+el("#allJp").checked = false; el("#allJp").listeners.change();
+checks["全国から探すを外すと県の中だけ"] = !el("#list").innerHTML.includes("岩手県 盛岡市") && el("#city").disabled === false;
+el("#q").value = ""; el("#q").listeners.input();
+// 近い順: 現在地（青森市の辺り）から近い地域が先頭に来る。もう一度押すと件数順（八戸市が先頭）に戻る
+Object.defineProperty(globalThis, "navigator", {configurable: true, value: {geolocation: {getCurrentPosition(ok) { ok({coords: {latitude: 40.82, longitude: 140.74}}); }}}});
+await el("#nearBtn").listeners.click();
+checks["近い順: 現在地に近い地域が先頭"] = el("#city").children[0].value === "青森市" && /<h2 class="city">青森市/.test(el("#list").innerHTML) && /✓/.test(el("#nearBtn").textContent);
+await el("#nearBtn").listeners.click();
+checks["近い順: もう一度押すと件数順に戻る"] = el("#city").children[0].value === "八戸市" && el("#nearBtn").textContent === "近い順";
 let ng = 0;
 for (const [k, v] of Object.entries(checks)) { console.log(v ? "OK" : "NG", k); if (!v) ng++; }
 process.exit(ng);
