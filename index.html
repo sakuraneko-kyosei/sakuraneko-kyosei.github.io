@@ -223,8 +223,13 @@
   const cache = {};
   const loadPref = p => {
     if (!idx.counts[p]) return Promise.resolve([]);
-    return cache[p] ??= fetch(`data/clinics/${encodeURIComponent(p)}.json`).then(r => r.json()).then(d => d.clinics).catch(() => []);
+    // 取得に失敗した県は覚えておかず、次に選んだ時に取り直す（失敗を「準備中」と見せない）
+    loadPref.failed.delete(p);
+    return cache[p] ??= fetch(`data/clinics/${encodeURIComponent(p)}.json`)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => d.clinics)
+      .catch(() => { delete cache[p]; loadPref.failed.add(p); return []; });
   };
+  loadPref.failed = new Set();
   let clinics = [];
 
   // 登録（Sheets 公開 CSV）。列は見出しの名前で探す。
@@ -322,7 +327,7 @@
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify({pref: $("#pref").value, city: $("#city").value})); } catch (e) {} };
   const saved = load();
-  const fromUrl = new URLSearchParams(location.search).get("pref");
+  const qs = new URLSearchParams(location.search), fromUrl = qs.get("pref");
   $("#pref").value = [fromUrl, saved.pref, cfg.defaultPref, "東京都"].find(p => PREFS.includes(p));
   $("#pref").addEventListener("change", async () => {
     const p = $("#pref").value;
@@ -330,7 +335,7 @@
     history.replaceState(null, "", u);
     clinics = await loadPref(p);
     if (p !== $("#pref").value) return; // 読み込み中に別の県へ切り替えられた
-    render.page = 0; fillCities(); save(); render();
+    render.page = 0; $("#q").value = ""; fillCities(); save(); render();
   });
   $("#city").addEventListener("change", () => { render.page = 0; save(); render(); });
   $("#onlyReported").addEventListener("change", () => { render.page = 0; render(); });
@@ -338,7 +343,11 @@
   clinics = await loadPref($("#pref").value);
   fillCities();
   // 前回の地域は、同じ県を開いた時だけ戻す（その県に無い地域は無視）
-  if (saved.city && saved.pref === $("#pref").value && [...$("#city").options].some(o => o.value === saved.city)) $("#city").value = saved.city;
+  const hasCity = c => c && [...$("#city").options].some(o => o.value === c);
+  if (fromUrl === $("#pref").value && hasCity(qs.get("city"))) $("#city").value = qs.get("city");
+  else if (saved.city && saved.pref === $("#pref").value && hasCity(saved.city)) $("#city").value = saved.city;
+  if (fromUrl === $("#pref").value && qs.get("q")) $("#q").value = qs.get("q");
+  if (fromUrl === $("#pref").value && +qs.get("page") > 1) render.page = +qs.get("page") - 1;
   render();
   reportsReady.then(() => { card.loaded = true; render(); });
 
@@ -406,6 +415,13 @@
 
     const mine = clinics.filter(x => x.pref === p);
     $("#pager").innerHTML = ""; $("#pagerTop").innerHTML = "";
+    if (!mine.length && loadPref.failed.has(p)) {
+      $("#list").innerHTML = `<div class="card empty">
+        <h3>${esc(p)}の病院を読み込めませんでした</h3>
+        <p class="meta">通信が不安定な可能性があります。少し待ってから、県を選び直すか、ページを再読み込みしてください。</p>
+      </div>`;
+      return;
+    }
     if (!mine.length) {
       $("#list").innerHTML = `<div class="card empty">
         <h3>${esc(p)}の病院はまだ登録されていません（準備中）</h3>
@@ -418,8 +434,13 @@
     const only = $("#onlyReported").checked;
     const reported = new Set(reports.filter(r => (r.pref || "青森県") === p).map(r => norm(r.clinic)));
     // 地域の件数は、チェック中は登録がある病院の数に切り替える
+    const fold = t => String(t || "").normalize("NFKC").toLowerCase().replace(/[-‐－ー\s]/g, "");
+    const words = $("#q").value.normalize("NFKC").toLowerCase().split(/\s+/).filter(Boolean).map(fold);
+    const hit = c => { const t = fold([c.name, c.formName, c.address, c.city, c.tel].join(" ")); return words.every(w => t.includes(w)); };
+    // 地域と「登録がある病院だけ」の件数も、検索に合う病院だけで数える（ページ送りの「◯件中」と揃える）
     const nAll = new Map(), nRep = new Map();
     for (const x of mine) {
+      if (!hit(x)) continue;
       nAll.set(x.city, (nAll.get(x.city) || 0) + 1);
       if (reported.has(norm(x.formName || x.name))) nRep.set(x.city, (nRep.get(x.city) || 0) + 1);
     }
@@ -427,9 +448,6 @@
     const rc = sel ? nRep.get(sel) || 0 : [...nRep.values()].reduce((a, b) => a + b, 0);
     $("#onlyCount").textContent = card.loaded ? `（${rc}件）` : "";
     // 検索: 病院名・住所・地域・電話番号のどれかに入力の語がすべて含まれるもの（空白区切り、電話はハイフンを無視）
-    const fold = t => String(t || "").normalize("NFKC").toLowerCase().replace(/[-‐－ー\s]/g, "");
-    const words = $("#q").value.normalize("NFKC").toLowerCase().split(/\s+/).filter(Boolean).map(fold);
-    const hit = c => { const t = fold([c.name, c.formName, c.address, c.city, c.tel].join(" ")); return words.every(w => t.includes(w)); };
     const rows = [];
     for (const city of [...new Set(mine.map(x => x.city))]) {
       if (sel && city !== sel) continue;
@@ -450,6 +468,14 @@
     // ⚠️ render は宣言より前に呼ばれるので、ページ番号は let でなく関数の属性に持つ（登録の読み込み後の描き直しでページを保つため）
     const PER = 50, pages = Math.max(1, Math.ceil(rows.length / PER));
     const pg = render.page = Math.min(render.page || 0, pages - 1);
+    try {
+      const u = new URL(location.href), sp = u.searchParams;
+      sp.set("pref", p);
+      sel ? sp.set("city", sel) : sp.delete("city");
+      $("#q").value.trim() ? sp.set("q", $("#q").value.trim()) : sp.delete("q");
+      pg ? sp.set("page", pg + 1) : sp.delete("page");
+      if (u.href !== location.href) history.replaceState(null, "", u);
+    } catch (e) {}
     let last = "";
     for (const c of rows.slice(pg * PER, pg * PER + PER)) {
       if (c.city !== last) { html.push(`<h2 class="city">${esc(c.city)}</h2>`); last = c.city; }
