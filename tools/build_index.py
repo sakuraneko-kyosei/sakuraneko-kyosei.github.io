@@ -14,6 +14,8 @@ from scrape_anicom import city_of
 
 ROOT = Path(__file__).resolve().parent.parent
 DIR = ROOT / "data" / "clinics"
+# 市区町村の読み（Geolonia「japanese-addresses」latest.csv の市区町村名カナ、CC BY 4.0）
+KANA = json.loads((ROOT / "tools" / "city_kana.json").read_text(encoding="utf-8"))
 SOURCE = ("アニコムどうぶつ病院検索（https://www.anicom-ah.com/）と Caloo ペット（https://pet.caloo.jp/）の公開情報から、猫を診る病院を転記。"
           "診療時間は要約であり変わることがあるので、必ず病院へ確認してください。")
 
@@ -22,8 +24,12 @@ def main():
     for f in sorted(DIR.glob("*.json")):
         d = json.loads(f.read_text(encoding="utf-8"))
         cl = d["clinics"]
-        if d["pref"] != "青森県":  # 青森県は手で整えた市町村名を保つ
-            for c in cl: c["city"] = city_of(d["pref"] + c["address"], d["pref"])
+        # 地域名は全県とも住所から、実在の市区町村の一覧と照らして決める（郡は落とす、政令市は市）
+        for c in cl: c["city"] = city_of(d["pref"] + c["address"], d["pref"])
+        # 地域は件数の多い順、同数は読みのあいうえお順（読みの無い「住所未掲載」等は最後）。
+        # サイトは出てきた順に地域を並べるので、病院の並びごと入れ替える（地域内の順は保つ）
+        kana, n = KANA.get(d["pref"], {}), Counter(c["city"] for c in cl)
+        cl.sort(key=lambda c: (c["city"] not in kana, -n[c["city"]], kana.get(c["city"], c["city"])))
         n1 = Counter(c["name"] for c in cl)
         for c in cl:
             c["formName"] = c["name"] if n1[c["name"]] == 1 else f'{c["name"]}（{c["city"]}）'

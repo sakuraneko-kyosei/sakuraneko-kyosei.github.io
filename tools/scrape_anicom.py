@@ -24,10 +24,6 @@ PREFS = [("hokkaido","北海道"),("aomori","青森県"),("iwate","岩手県"),(
 BASE = "https://www.anicom-ah.com/"
 WAIT = 1.5
 OUT = Path(__file__).resolve().parent.parent / "data" / "clinics"
-# 「市・区・町・村」の字を名前の途中に含む市町村。住所の頭がこれなら丸ごと採る
-SPECIAL = ["四日市市","廿日市市","野々市市","十日町市","大町市","町田市","東村山市","武蔵村山市","村山市",
- "村上市","市川市","市原市","市貝町","市川三郷町","大村市","羽村市","田村市","北村山郡","西村山郡","東村山郡",
- "中新川郡","上市町","日野市","市来","八日市","五日市","町野"]
 DAYS = "月火水木金土日祝"
 
 def get(url):
@@ -39,20 +35,45 @@ def get(url):
             print("  retry", i, e, flush=True); time.sleep(5)
     raise RuntimeError("取得できない: " + url)
 
+# 実在の市区町村の一覧（Geolonia「japanese-addresses」api/ja.json、CC BY 4.0）。
+# 住所の頭を字で切ると「木津川市市坂」「新宿区市谷」「小郡市」「蒲郡市」を取り違えるので、一覧と照らす
+_MUNI = json.loads((Path(__file__).resolve().parent / "municipalities.json").read_text(encoding="utf-8"))
+_FORMS = {}
+_OLD = {"前原市": "糸島市"}  # 2010 年に合併
+
+def _forms(pref):
+    # (住所の頭に来る書き方, 表示する地域名) の組を長い順に。郡は落とし、政令市は区でなく市にまとめる
+    if pref not in _FORMS:
+        out = []
+        for n in _MUNI.get(pref, []):
+            shown = re.sub(r"^.+?郡(?=.+[町村]$)", "", n)
+            m = re.match(r"^(.+?市)(.+区)$", n)
+            if m: shown = m.group(1); out.append((m.group(1), shown))
+            out += [(n, shown), (shown, shown)]
+        _FORMS[pref] = sorted(set(out), key=lambda x: -len(x[0]))
+    return _FORMS[pref]
+
+def _fold(s):
+    # 表記の揺れ（鎌ケ谷/鎌ヶ谷、龍ケ崎/龍ヶ崎、諌早/諫早）を寄せて比べる
+    return s.replace("ケ", "ヶ").replace("諌", "諫").replace("惠", "恵")
+
 def city_of(addr, pref):
-    a = addr[len(pref):] if addr.startswith(pref) else addr
-    # 郡は落とす。郡の名前自体に「市」「町」を含む事がある（余市郡余市町）ので、郡の位置で切る
-    g = a.find("郡")
-    if 0 < g <= 5: a = a[g+1:]
-    for s in SPECIAL:
-        if a.startswith(s) and s[-1] in "市区町村":
-            return s
-    m = re.match(r"^(.{1,6}?[市区町村])", a)
-    if not m: return ""
-    c = m.group(1)
-    # 「余市」+町、「四日市」+市 のように、次の字も市町村の字なら含める
-    if len(a) > len(c) and a[len(c)] in "市町村": c = a[:len(c)+1]
-    return c
+    a = addr.strip()
+    while a.startswith(pref): a = a[len(pref):].strip()  # 住所に県名が重なっている物がある
+    if not a: return "住所未掲載"
+    a = _fold(a)
+    for old, new in _OLD.items():  # 合併前の市名のままの住所
+        if a.startswith(old): a = new + a[len(old):]
+    for form, shown in _forms(pref):
+        if a.startswith(_fold(form)): return shown
+    # 頭に島の名前などが付く住所（八丈島八丈町）は、頭の数字の内側で探す
+    for form, shown in _forms(pref):
+        i = a.find(_fold(form))
+        if 0 < i <= 4: return shown
+    # 郡までしか書いていない住所は郡の名前で出す
+    m = re.match(r"^(.+?郡)", a)
+    if m and any(f.startswith(m.group(1)) for f, _ in _forms(pref)): return m.group(1)
+    return "その他"
 
 def hours_of(sec):
     rows = re.findall(r"<tr>\s*<td>([^<]*)</td>(.*?)</tr>", sec, re.S)
