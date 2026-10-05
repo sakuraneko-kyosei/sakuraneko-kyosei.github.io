@@ -478,9 +478,9 @@
       }
       for (const name of names.values()) if (hit({name})) extra.push(card({pref: p, name, unlisted: true}));
     }
-    // 50件ずつのページに分ける。一覧に無い病院の枠は最後のページに付ける
+    // 20件ずつのページに分ける（スマホで1ページが長くなりすぎないよう）。一覧に無い病院の枠は最後のページに付ける
     // ⚠️ render は宣言より前に呼ばれるので、ページ番号は let でなく関数の属性に持つ（登録の読み込み後の描き直しでページを保つため）
-    const PER = 50, pages = Math.max(1, Math.ceil(rows.length / PER));
+    const PER = 20, pages = Math.max(1, Math.ceil(rows.length / PER));
     const pg = render.page = Math.max(0, Math.min(Math.floor(render.page) || 0, pages - 1));
     syncUrl(pg);
     let last = "";
