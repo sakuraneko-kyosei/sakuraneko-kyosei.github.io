@@ -60,6 +60,10 @@
   .latest .days{font-weight:700;color:var(--accent2)}
   .latest .stale{color:var(--warn)}
   .latest .none{color:var(--muted)}
+  .pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;margin:16px 0}
+  .pager button{padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:transparent;color:inherit;font:inherit;cursor:pointer}
+  .pager button:disabled{opacity:.4;cursor:default}
+  #q{min-width:14em;padding:4px 6px;font:inherit}
   .city{margin:20px 0 6px;font-size:1.15rem;border-bottom:1px solid var(--line)}
   footer{margin:32px 0 16px;color:var(--muted);font-size:.85rem}
   a.btn.ico{display:inline-flex;align-items:center;gap:6px}
@@ -128,6 +132,7 @@
 <div class="toolbar">
   <label>都道府県：<select id="pref"></select></label>
   <label>地域：<select id="city"><option value="">すべて</option></select></label>
+  <label>検索：<input type="search" id="q" placeholder="病院名・住所・電話番号"></label>
   <label><input type="checkbox" id="onlyReported"> 登録がある病院だけ<span id="onlyCount"></span></label>
   <a id="formBtn" class="btn primary hidden" href="#" target="_blank" rel="noopener">最短日を登録する</a>
   <a id="clinicBtn" class="btn hidden" href="#" target="_blank" rel="noopener">載っていない病院を知らせる</a>
@@ -141,6 +146,7 @@
 </div>
 
 <div id="list"></div>
+<div id="pager" class="pager"></div>
 
 
 <dialog id="reg">
@@ -321,10 +327,11 @@
     history.replaceState(null, "", u);
     clinics = await loadPref(p);
     if (p !== $("#pref").value) return; // 読み込み中に別の県へ切り替えられた
-    fillCities(); save(); render();
+    render.page = 0; fillCities(); save(); render();
   });
-  $("#city").addEventListener("change", () => { save(); render(); });
-  $("#onlyReported").addEventListener("change", () => render());
+  $("#city").addEventListener("change", () => { render.page = 0; save(); render(); });
+  $("#onlyReported").addEventListener("change", () => { render.page = 0; render(); });
+  $("#q").addEventListener("input", () => { render.page = 0; render(); });
   clinics = await loadPref($("#pref").value);
   fillCities();
   // 前回の地域は、同じ県を開いた時だけ戻す（その県に無い地域は無視）
@@ -390,6 +397,7 @@
     $("#shareLine").href = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(page)}`;
 
     const mine = clinics.filter(x => x.pref === p);
+    $("#pager").innerHTML = "";
     if (!mine.length) {
       $("#list").innerHTML = `<div class="card empty">
         <h3>${esc(p)}の病院はまだ登録されていません（準備中）</h3>
@@ -410,14 +418,17 @@
     for (const o of $("#city").options) if (o.value) o.textContent = `${o.value}（${(only ? nRep : nAll).get(o.value) || 0}件）`;
     const rc = sel ? nRep.get(sel) || 0 : [...nRep.values()].reduce((a, b) => a + b, 0);
     $("#onlyCount").textContent = card.loaded ? `（${rc}件）` : "";
+    // 検索: 病院名・住所・地域・電話番号のどれかに入力の語がすべて含まれるもの（空白区切り、電話はハイフンを無視）
+    const fold = t => String(t || "").normalize("NFKC").toLowerCase().replace(/[-‐－ー\s]/g, "");
+    const words = $("#q").value.normalize("NFKC").toLowerCase().split(/\s+/).filter(Boolean).map(fold);
+    const hit = c => { const t = fold([c.name, c.formName, c.address, c.city, c.tel].join(" ")); return words.every(w => t.includes(w)); };
+    const rows = [];
     for (const city of [...new Set(mine.map(x => x.city))]) {
       if (sel && city !== sel) continue;
-      const cs = mine.filter(x => x.city === city && (!only || reported.has(norm(x.formName || x.name))));
-      if (!cs.length) continue;
-      html.push(`<h2 class="city">${esc(city)}</h2>`);
-      for (const c of cs) html.push(card(c));
+      for (const c of mine) if (c.city === city && (!only || reported.has(norm(c.formName || c.name))) && hit(c)) rows.push(c);
     }
     // 一覧に無い病院として登録されたもの（名前が一覧のどれとも一致しない）を、地域を絞っていない時だけ別枠で出す
+    const extra = [];
     if (!sel) {
       const known = new Set(mine.map(c => norm(c.formName || c.name)));
       const names = new Map();
@@ -425,20 +436,33 @@
         if ((r.pref || "青森県") !== p || known.has(norm(r.clinic))) continue;
         if (!names.has(norm(r.clinic))) names.set(norm(r.clinic), r.clinic.trim());
       }
-      if (names.size) {
-        html.push(`<h2 class="city">一覧に無い病院の登録</h2>
-          <p class="meta">利用者が一覧に無い病院として登録したものです。病院名は入力されたままで、運営者はまだ確かめていません。</p>`);
-        for (const name of names.values()) html.push(card({pref: p, name, unlisted: true}));
-      }
+      for (const name of names.values()) if (hit({name})) extra.push(card({pref: p, name, unlisted: true}));
     }
-    if (!html.length) html.push(`<div class="card empty"><p class="meta">${only ? "この条件で登録のある病院はまだありません。" : "病院がありません。"}</p></div>`);
-    // 最初の60項目をすぐ出し、残りは次の描画の後に足す（東京都は1000件超で、一度に入れると表示が遅い）
-    // ⚠️ render は宣言より前に呼ばれるので、番号は let でなく関数の属性に持つ（県や地域を切り替えた時、前の描画の続きを足さないため）
-    const token = render.token = (render.token || 0) + 1, FIRST = 60;
-    $("#list").innerHTML = html.slice(0, FIRST).join("");
-    if (html.length > FIRST) setTimeout(() => {
-      if (token === render.token) $("#list").insertAdjacentHTML("beforeend", html.slice(FIRST).join(""));
-    }, 0);
+    // 50件ずつのページに分ける。一覧に無い病院の枠は最後のページに付ける
+    // ⚠️ render は宣言より前に呼ばれるので、ページ番号は let でなく関数の属性に持つ（登録の読み込み後の描き直しでページを保つため）
+    const PER = 50, pages = Math.max(1, Math.ceil(rows.length / PER));
+    const pg = render.page = Math.min(render.page || 0, pages - 1);
+    let last = "";
+    for (const c of rows.slice(pg * PER, pg * PER + PER)) {
+      if (c.city !== last) { html.push(`<h2 class="city">${esc(c.city)}</h2>`); last = c.city; }
+      html.push(card(c));
+    }
+    if (extra.length && pg === pages - 1) {
+      html.push(`<h2 class="city">一覧に無い病院の登録</h2>
+        <p class="meta">利用者が一覧に無い病院として登録したものです。病院名は入力されたままで、運営者はまだ確かめていません。</p>`, ...extra);
+    }
+    if (!html.length) html.push(`<div class="card empty"><p class="meta">${words.length ? "検索に合う病院がありません。" : only ? "この条件で登録のある病院はまだありません。" : "病院がありません。"}</p></div>`);
+    $("#list").innerHTML = html.join("");
+    if (pages > 1) {
+      const go = n => { render.page = n; render(); $("#list").scrollIntoView({behavior: "smooth", block: "start"}); };
+      const pager = $("#pager");
+      const btn = (label, n, dis) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.disabled = dis; b.addEventListener("click", () => go(n)); pager.appendChild(b); };
+      btn("« 前へ", pg - 1, pg === 0);
+      const info = document.createElement("span"); info.className = "meta";
+      info.textContent = `${pg + 1} / ${pages} ページ（${rows.length}件中 ${pg * PER + 1}〜${Math.min(rows.length, pg * PER + PER)}件）`;
+      pager.appendChild(info);
+      btn("次へ »", pg + 1, pg === pages - 1);
+    }
   }
 
   // 病院の情報がいつ時点か。訂正を反映した病院は updated（YYYY-MM-DD）を持つ。
