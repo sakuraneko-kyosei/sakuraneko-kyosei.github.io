@@ -18,6 +18,7 @@ function el(sel) {
     insertAdjacentHTML(_, h) { this.innerHTML += h; },
     addEventListener(t, f) { this.listeners[t] = f; },
     scrollIntoView() {},
+    dispatchEvent(e) { this.listeners[e.type]?.(e); },
   };
 }
 globalThis.document = { querySelector: el, createElement: () => ({ listeners: {}, children: [], addEventListener(t, f) { this.listeners[t] = f; }, appendChild(o) { this.children.push(o); } }), title: "" };
@@ -57,7 +58,7 @@ const checks = {
   "あおば: 避妊の行に19日後、去勢は未登録": /あおば動物病院[\s\S]*?<b>去勢（オス）<\/b> <span class="none">[\s\S]*?<b>避妊（メス）<\/b>[\s\S]*?19日後/.test(out),
   "未登録の病院は案内": out.includes("まだ登録がありません"),
   "事前入力リンク": out.includes("entry.1=%E3%82%81%E3%81%96%E3%82%8F"),
-  "八戸市が先頭": (out.match(/<h2 class="city">([^<]+)/) || [])[1] === "八戸市",
+  "八戸市が先頭": (out.match(/<h2 class="city">([^<\s]+)/) || [])[1] === "八戸市",
   "都道府県 47": el("#pref").children.length === 47,
   "既定は青森県": el("#pref").value === "青森県" && el("#prefTitle").textContent === "（青森県）",
   "青森は件数付き": el("#pref").children.find(o => o.value === "青森県").textContent === "青森県（67件）",
@@ -112,6 +113,15 @@ checks["番号入力と移動は1つのまとまりで次の行"] = el("#pager")
 checks["上の入力で2ページ目へ移動"] = nCard() === 20 && pagerText().includes("2 / 4 ページ") && jumpOf("#pager")[1].value === 2;
 { const inp = jumpOf("#pager")[1]; clearP(); inp.value = "99"; inp.listeners.keydown({key: "Enter"}); }
 checks["下の入力のEnterで範囲外は最終ページ（7件）に丸める"] = nCard() === 7 && pagerText().includes("4 / 4 ページ（67件中 61〜67件）") && el("#pager").children[2].disabled === true;
+// ページ指定のホイール: 最終ページで下へ回してもページのスクロールは止めない。上へ回すと番号が減り、少し待つと移動する
+{ const ev = dy => ({deltaY: dy, deltaMode: 0, ctrlKey: false, stopped: false, preventDefault() { this.stopped = true; }});
+  const [, inp] = jumpOf("#pager"); const down = ev(100); inp.listeners.wheel(down);
+  checks["ページ指定: 最終ページで下へはページのスクロールを止めない"] = down.stopped === false && inp.value == 4;
+  const up = ev(-100); inp.listeners.wheel(up);
+  checks["ページ指定: 上へ回すと番号が減る（すぐには移動しない）"] = up.stopped === true && inp.value == 3 && nCard() === 7;
+  clearP(); await new Promise(r => setTimeout(r, 500));
+  checks["ページ指定: 回し終えると自動で移動"] = nCard() === 20 && pagerText().includes("3 / 4 ページ");
+  const [, back, btn] = jumpOf("#pager"); clearP(); back.value = "4"; btn.listeners.click(); }  // 後の検査のため最終ページへ戻す
 checks["一覧に無い病院は最後のページに別枠で出す"] = el("#list").innerHTML.includes("一覧に無い病院の登録") && /ねこの森クリニック[\s\S]*?8日後/.test(el("#list").innerHTML);
 { const inp = jumpOf("#pager")[1]; clearP(); inp.value = "0"; inp.listeners.keydown({key: "Enter"}); }
 checks["0を入れると1ページ目に丸める"] = nCard() === 20;
@@ -123,6 +133,7 @@ el("#q").value = "はちのへ"; el("#q").listeners.input();
 checks["検索: 地域の読み（ひらがな）でも引ける"] = nCard() === 16;
 el("#q").value = "ハチノヘ"; el("#q").listeners.input();
 checks["検索: カタカナでも引ける"] = nCard() === 16;
+checks["地域の見出しに読み"] = el("#list").innerHTML.includes(`<h2 class="city">八戸市 <span class="kana">はちのへし</span></h2>`);
 el("#q").value = "八戸"; el("#q").listeners.input();
 checks["検索中は地域の件数も検索に合う数"] = el("#city").children.find(o => o.value === "八戸市").textContent === "八戸市（16件）"
   && el("#city").children.filter(o => !/（0件）$/.test(o.textContent)).length === 1;
@@ -158,6 +169,21 @@ checks["送信直後: 反映待ちで出す"] = /あおば動物病院[\s\S]*?7�
 checks["自分の登録にだけ取り消しボタン"] = (pe.match(/data-undo=/g) || []).length === 1 && pe.includes('data-undo="abc123"');
 window.dispatchEvent(new CustomEvent("kyosei:sent", {detail: {del: "abc123"}}));
 checks["取り消すと一覧から消える"] = !el("#list").innerHTML.includes("送信済み・反映待ち");
+// ホイール: 地域の上で回すと一つずつ切り替わり、端で止まる。細かい量はためてから動かす
+const wheel = (id, dy) => el(id).listeners.wheel({deltaY: dy, deltaMode: 0, preventDefault() {}});
+el("#city").value = ""; el("#city").listeners.change();
+wheel("#city", 40);
+checks["ホイール: 少しだけでは動かない"] = el("#city").value === "";
+wheel("#city", 60);
+checks["ホイール: 下へ回すと次の地域"] = el("#city").value === "八戸市" && el("#list").innerHTML.includes("八戸市");
+wheel("#city", -100);
+checks["ホイール: 上へ回すと戻る"] = el("#city").value === "";
+{ const e = {deltaY: -100, deltaMode: 0, ctrlKey: false, stopped: false, preventDefault() { this.stopped = true; }};
+  el("#city").listeners.wheel(e);
+  checks["ホイール: 先頭で止まり、ページのスクロールは止めない"] = el("#city").value === "" && e.stopped === false; }
+{ const e = {deltaY: 100, deltaMode: 0, ctrlKey: true, stopped: false, preventDefault() { this.stopped = true; }};
+  el("#city").listeners.wheel(e);
+  checks["ホイール: Ctrl+ホイール（拡大縮小）は邪魔しない"] = el("#city").value === "" && e.stopped === false; }
 let ng = 0;
 for (const [k, v] of Object.entries(checks)) { console.log(v ? "OK" : "NG", k); if (!v) ng++; }
 process.exit(ng);

@@ -19,8 +19,15 @@ UA = "sakuraneko-kyosei-bot (+https://sakuraneko-kyosei.github.io/)"
 OUT = Path(__file__).resolve().parent.parent / "data" / "clinics"
 _last = [0.0]
 
+def _cache_file(url, cache):
+    return cache / (re.sub(r"[^0-9A-Za-z]+", "_", url[len(BASE):]).strip("_") + ".html")
+
+def fetched_on(url, cache):
+    # 取得日は今日ではなく、キャッシュに保存した日（続きから走らせても古いページを新しく見せない）
+    return time.strftime("%Y-%m-%d", time.localtime(_cache_file(url, cache).stat().st_mtime))
+
 def get(url, cache):
-    f = cache / (re.sub(r"[^0-9A-Za-z]+", "_", url[len(BASE):]).strip("_") + ".html")
+    f = _cache_file(url, cache)
     if f.exists():
         return f.read_text(encoding="utf-8")
     req = urllib.request.Request(url, headers={"User-Agent": UA})
@@ -146,7 +153,8 @@ def scrape_pref(code, pref, cache, log):
         a = unicodedata.normalize("NFKC", h["address"])
         a = a[len(pref):] if a.startswith(pref) else a
         c = {"id": "caloo-" + h["cid"], "pref": pref, "name": h["name"], "city": city_of(pref + a, pref),
-             "address": a, "tel": det["tel"], "hours": det["hours"], "asOf": time.strftime("%Y-%m-%d")}  # 取得日
+             "address": a, "tel": det["tel"], "hours": det["hours"],
+             "asOf": fetched_on(f"{BASE}/hospitals/detail/{h['cid']}", cache)}  # 詳細ページを取った日
         added.append(c)
         names.add(norm_name(c["name"])); addrs.add(norm_addr(a, pref)); ids.add(c["id"])
         if digits(c["tel"]): tels.add(digits(c["tel"]))

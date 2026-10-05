@@ -67,6 +67,7 @@
   .pager .jump{flex-basis:100%;display:flex;gap:6px;align-items:center;justify-content:center}
   #q{min-width:14em;padding:4px 6px;font:inherit}
   .city{margin:20px 0 6px;font-size:1.15rem;border-bottom:1px solid var(--line)}
+  .city .kana{font-size:.75rem;font-weight:normal;color:var(--muted);margin-left:.4em}
   footer{margin:32px 0 16px;color:var(--muted);font-size:.85rem}
   a.btn.ico{display:inline-flex;align-items:center;gap:6px}
   a.btn.share{padding:6px}
@@ -334,12 +335,23 @@
     const p = $("#pref").value;
     const u = new URL(location.href); u.searchParams.set("pref", p);
     history.replaceState(null, "", u);
-    clinics = await loadPref(p);
-    if (p !== $("#pref").value) return; // 読み込み中に別の県へ切り替えられた
+    const got = await loadPref(p);
+    if (p !== $("#pref").value) return; // 読み込み中に別の県へ切り替えられた（古い県のデータで上書きしない）
+    clinics = got;
     render.page = 0; $("#q").value = ""; fillCities(); save(); render();
   });
   $("#city").addEventListener("change", () => { render.page = 0; save(); render(); });
   $("#onlyReported").addEventListener("change", () => { render.page = 0; render(); });
+  // 都道府県・地域は、マウスを重ねてホイールを回すと一つずつ切り替わる（下へ回すと次）
+  for (const id of ["#pref", "#city"]) {
+    const s = $(id);
+    wheelStep(s, (dir, dry) => {
+      const opts = [...s.options], i = opts.findIndex(o => o.value === s.value), j = i + dir;
+      if (i < 0 || j < 0 || j >= opts.length) return false;
+      if (!dry) { s.value = opts[j].value; s.dispatchEvent(new Event("change")); }
+      return true;
+    });
+  }
   $("#q").addEventListener("input", () => { render.page = 0; render(); });
   $("#onlyReported").checked = false;
   clinics = await loadPref($("#pref").value);
@@ -380,7 +392,25 @@
     sel.disabled = sel.length === 1;
   }
 
+  // ホイール 1 目盛りで move(向き) を 1 回呼ぶ。move(向き, true) は「動けるか」だけを返す。
+  // 動ける時だけページのスクロールを止める（端に着いたら、そのままページがスクロールする）。
+  // Ctrl+ホイール（拡大縮小）と無効な欄は邪魔しない。トラックパッドの細かい量は 100 たまってから動かす
+  function wheelStep(target, move){
+    let acc = 0;
+    target.addEventListener("wheel", e => {
+      if (e.ctrlKey || target.disabled || !e.deltaY) return;
+      const dir = Math.sign(e.deltaY);
+      if (Math.sign(acc) !== dir) acc = 0;  // 向きが変わったらため直す
+      if (!move(dir, true)) { acc = 0; return; }
+      e.preventDefault();
+      acc += e.deltaMode ? e.deltaY * 100 : e.deltaY;  // 行・ページ単位で来る環境は 1 を 1 目盛りとみなす
+      if (Math.abs(acc) < 100) return;
+      acc = 0; move(dir, false);
+    }, {passive: false});
+  }
+
   function render(){
+    clearTimeout(render.wheelT);  // ページ指定のホイールで待っている移動は、一覧を描き直したら取り消す（古い番号で飛ばない）
     const p = $("#pref").value, sel = $("#city").value;
     $("#prefTitle").textContent = `（${p}）`;
     // 実績: 掲載している病院の数（全国）と、利用者から届いた登録の数。実際の数だけを出す
@@ -491,7 +521,7 @@
     syncUrl(pg);
     let last = "";
     for (const c of rows.slice(pg * PER, pg * PER + PER)) {
-      if (c.city !== last) { html.push(`<h2 class="city">${esc(c.city)}</h2>`); last = c.city; }
+      if (c.city !== last) { html.push(`<h2 class="city">${esc(c.city)}${c.cityKana ? ` <span class="kana">${esc(c.cityKana)}</span>` : ""}</h2>`); last = c.city; }
       html.push(card(c));
     }
     if (extra.length && pg === pages - 1) {
@@ -518,6 +548,13 @@
         const jump = () => { const n = parseInt(inp.value, 10); if (!isNaN(n)) go(n - 1); };
         put("button", b => { b.type = "button"; b.textContent = "移動"; b.addEventListener("click", jump); });
         inp.addEventListener("keydown", e => { if (e.key === "Enter") jump(); });
+        // ホイールで番号を一つずつ変え（下へ回すと次のページ）、回し終えて少し待つと自動で移動する
+        wheelStep(inp, (dir, dry) => {
+          const cur = parseInt(inp.value, 10), n = (isNaN(cur) ? pg + 1 : cur) + dir;
+          if (n < 1 || n > pages) return false;
+          if (!dry) { inp.value = n; clearTimeout(render.wheelT); render.wheelT = setTimeout(jump, 400); }
+          return true;
+        });
       }
     }
   }

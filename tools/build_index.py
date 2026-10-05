@@ -10,6 +10,7 @@
 import json
 from collections import Counter
 from pathlib import Path
+from urllib.parse import quote
 from scrape_anicom import city_of
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,9 +46,16 @@ def main():
         f.write_text(json.dumps(d, ensure_ascii=False, indent=0), encoding="utf-8")
         counts[d["pref"]] = len(cl)
         # 病院情報の最終更新日（訂正日 updated か取得日 asOf。どちらも無い物は一括取り込みの日）
-        latest = max([latest] + [c.get("updated") or c.get("asOf") or "2026-09-23" for c in cl])
+        latest = max([latest] + [max(c.get("updated") or "", c.get("asOf") or "") or "2026-09-23" for c in cl])
     (ROOT / "data" / "prefs.json").write_text(
         json.dumps({"source": SOURCE, "updated": latest, "counts": counts}, ensure_ascii=False, indent=1), encoding="utf-8")
+    # 検索エンジン向けの一覧。更新日はデータの最終更新日に合わせる（掲載のある県だけ載せる）
+    top = "https://sakuraneko-kyosei.github.io/"
+    urls = [top] + [top + "?pref=" + quote(p) for p, n in counts.items() if n]
+    (ROOT / "sitemap.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "".join(f"  <url><loc>{u}</loc><lastmod>{latest}</lastmod></url>\n" for u in urls) + "</urlset>\n",
+        encoding="utf-8", newline="\n")
     print(len(counts), "県", sum(counts.values()), "件")
 
 if __name__ == "__main__":
