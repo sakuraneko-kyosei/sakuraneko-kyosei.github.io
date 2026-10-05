@@ -516,7 +516,7 @@
     $("#pager").innerHTML = ""; $("#pagerTop").innerHTML = "";
     if (national && !render.all) {
       if (!render.allLoading) {
-        const ps = Object.keys(idx.counts).filter(k => idx.counts[k]);
+        const ps = [...$("#pref").options].map(o => o.value).filter(k => idx.counts[k]);  // 都道府県の選択欄と同じ北から南の順
         render.allLoading = Promise.all(ps.map(loadPref)).then(a => {
           render.all = a.flat(); render.allFailed = ps.filter((k, i) => !a[i].length); render.allLoading = null; render();
         });
