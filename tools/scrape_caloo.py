@@ -146,7 +146,7 @@ def scrape_pref(code, pref, cache, log):
         a = unicodedata.normalize("NFKC", h["address"])
         a = a[len(pref):] if a.startswith(pref) else a
         c = {"id": "caloo-" + h["cid"], "pref": pref, "name": h["name"], "city": city_of(pref + a, pref),
-             "address": a, "tel": det["tel"], "hours": det["hours"]}
+             "address": a, "tel": det["tel"], "hours": det["hours"], "asOf": time.strftime("%Y-%m-%d")}  # 取得日
         added.append(c)
         names.add(norm_name(c["name"])); addrs.add(norm_addr(a, pref)); ids.add(c["id"])
         if digits(c["tel"]): tels.add(digits(c["tel"]))

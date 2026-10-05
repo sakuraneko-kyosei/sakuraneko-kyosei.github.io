@@ -20,7 +20,7 @@ SOURCE = ("アニコムどうぶつ病院検索（https://www.anicom-ah.com/）�
           "診療時間は要約であり変わることがあるので、必ず病院へ確認してください。")
 
 def main():
-    counts = {}
+    counts, latest = {}, ""
     for f in sorted(DIR.glob("*.json")):
         d = json.loads(f.read_text(encoding="utf-8"))
         cl = d["clinics"]
@@ -30,6 +30,10 @@ def main():
         # サイトは出てきた順に地域を並べるので、病院の並びごと入れ替える（地域内の順は保つ）
         kana, n = KANA.get(d["pref"], {}), Counter(c["city"] for c in cl)
         cl.sort(key=lambda c: (c["city"] not in kana, -n[c["city"]], kana.get(c["city"], c["city"])))
+        # 地域の読みを持たせ、サイトの検索で「はちのへ」でも引けるようにする
+        for c in cl:
+            if c["city"] in kana: c["cityKana"] = kana[c["city"]]
+            else: c.pop("cityKana", None)
         n1 = Counter(c["name"] for c in cl)
         for c in cl:
             c["formName"] = c["name"] if n1[c["name"]] == 1 else f'{c["name"]}（{c["city"]}）'
@@ -40,8 +44,10 @@ def main():
         assert len({c["formName"] for c in cl}) == len(cl), f.name + " に formName の重複"
         f.write_text(json.dumps(d, ensure_ascii=False, indent=0), encoding="utf-8")
         counts[d["pref"]] = len(cl)
+        # 病院情報の最終更新日（訂正日 updated か取得日 asOf。どちらも無い物は一括取り込みの日）
+        latest = max([latest] + [c.get("updated") or c.get("asOf") or "2026-09-23" for c in cl])
     (ROOT / "data" / "prefs.json").write_text(
-        json.dumps({"source": SOURCE, "counts": counts}, ensure_ascii=False, indent=1), encoding="utf-8")
+        json.dumps({"source": SOURCE, "updated": latest, "counts": counts}, ensure_ascii=False, indent=1), encoding="utf-8")
     print(len(counts), "県", sum(counts.values()), "件")
 
 if __name__ == "__main__":

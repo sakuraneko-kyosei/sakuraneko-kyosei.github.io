@@ -98,7 +98,8 @@ def parse(page, pref):
         tel = (re.search(r'href="tel:([^"]+)"', sec) or [None, ""])[1]
         a = addr[len(pref):] if addr.startswith(pref) else addr
         out.append({"id": "anicom-" + m.group(1), "pref": pref, "name": html.unescape(m.group(2)).strip(),
-                    "city": city_of(addr, pref), "address": a, "tel": tel, "hours": hours_of(sec)})
+                    "city": city_of(addr, pref), "address": a, "tel": tel, "hours": hours_of(sec),
+                    "asOf": time.strftime("%Y-%m-%d")})  # 取得日（サイトの「最終更新」と各病院の「時点」に出る）
     return out
 
 def scrape(slug, pref):

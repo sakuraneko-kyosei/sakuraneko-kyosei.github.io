@@ -99,3 +99,8 @@ data/clinics.json  病院の公開情報（名前・住所・電話・診療時�
 
 `data/clinics.json` を直して push する。出典と取得日は `source` に書く。
 掲載の訂正・削除依頼が来たら該当行を消して push すればよい。
+
+## 保守
+
+- 試験: `sh tests/runtests.sh`（python と node が要る）
+- 病院データの定期更新: [tools/UPDATE.md](tools/UPDATE.md)
